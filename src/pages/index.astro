@@ -1,182 +1,145 @@
 ---
+// src/pages/index.astro
 import '../styles/global.css'
+
+// Import the new components
+import Display from '../components/Display.astro'
+import TipSelector from '../components/TipSelector.astro'
+import Keypad from '../components/Keypad.astro'
+
+// The state is defined once at the top for Server-Side Rendering (SSR)
+// It will be dynamically updated on the client via the script below.
+let amountStr = '0'
+let tipPercent = 0
+
+function calculateTotal(amount: string, tip: number): number {
+    const baseAmount = parseFloat(amount) || 0
+    const total = baseAmount * (1 + tip / 100)
+    return total
+}
+const initialTotal = calculateTotal(amountStr, tipPercent)
 ---
 
 <html lang="en">
-    <head>
-        <meta charset="utf-8" />
-        <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-        <meta name="viewport" content="width=device-width" />
-        <meta name="generator" content="{Astro.generator}" />
-        <title>Tea Shop POS</title>
-    </head>
-    <body class="bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-200 flex items-center justify-center min-h-screen">
-        <main class="w-full max-w-sm mx-auto bg-white dark:bg-slate-800 rounded-lg shadow-xl p-6 font-sans">
-            <!-- Main Display -->
-            <div class="text-center mb-4">
-                <span class="text-slate-500 dark:text-slate-400">USD</span>
-                <div id="total-display" class="text-6xl font-light tracking-tight">$0.00</div>
-                <div class="text-sm text-slate-400 dark:text-slate-500 mt-1">
-                    <span id="tip-display">Tip: 0%</span>
-                </div>
-            </div>
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width" />
+    <meta name="generator" content={Astro.generator} />
 
-            <!-- Tip Buttons -->
-            <div class="flex justify-between items-center mb-4">
-                <span class="font-semibold">Tip</span>
-                <div class="flex space-x-2">
-                    <button class="tip-btn" data-tip="custom">Custom</button>
-                    <button class="tip-btn active" data-tip="0">0%</button>
-                    <button class="tip-btn" data-tip="15">15%</button>
-                    <button class="tip-btn" data-tip="18">18%</button>
-                    <button class="tip-btn" data-tip="20">20%</button>
-                </div>
-            </div>
+	<title>DashPoint POS</title>
 
-            <!-- Keypad -->
-            <div class="grid grid-cols-3 gap-2 mb-4">
-                {'123456789.0'.split('').map(key => (
-                <button class="keypad-btn num-btn">{key}</button>
-                ))}
-                <button id="backspace-btn" class="keypad-btn flex items-center justify-center">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2M3 12l6.414 6.414a2 2 0 002.828 0L21 12M3 12l6.414-6.414a2 2 0 012.828 0L21 12" />
-                    </svg>
-                </button>
-            </div>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+</head>
 
-            <!-- Charge Button -->
-            <button id="charge-btn" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-4 rounded-lg text-xl transition-colors">
-                Charge
-            </button>
-        </main>
+<body class="bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-200 flex items-center justify-center min-h-screen">
 
-        <script>
-            // --- STATE ---
-            let amountStr = '0'; // The base amount entered by user
-            let tipPercent = 0; // The selected tip percentage
-            let activeMode: 'amount' | 'tip' = 'amount'; // 'amount' or 'tip'
+<main id="pos-app" class="w-full max-w-sm mx-auto bg-white dark:bg-slate-800 rounded-lg shadow-xl p-6 font-sans">
 
-            // --- DOM ELEMENTS ---
-            const totalDisplay = document.getElementById('total-display') as HTMLElement;
-            const tipDisplay = document.getElementById('tip-display') as HTMLElement;
-            const tipButtons = document.querySelectorAll('.tip-btn');
+	<!-- Components are placed here. Props are passed down. -->
+	<Display total={initialTotal} tipPercent={tipPercent} />
+	<TipSelector activeTip={tipPercent} />
+	<Keypad />
 
-            // --- LOGIC ---
-            function calculateTotal() {
-                const baseAmount = parseFloat(amountStr) || 0;
-                const total = baseAmount * (1 + tipPercent / 100);
-                return total;
-            }
+	<!-- The Charge button remains here as it's the final action of the page -->
+	<button id="charge-btn" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-4 rounded-lg text-xl transition-colors">
+		Charge
+	</button>
+</main>
 
-            function updateDisplay() {
-                // Update main total display
-                const finalTotal = calculateTotal();
-                totalDisplay.textContent = `$${finalTotal.toFixed(2)}`;
+<script>
+// --- CLIENT-SIDE SCRIPT FOR INTERACTIVITY ---
+// This single script on the main page manages all state.
 
-                // Update sub tip display
-                tipDisplay.textContent = `Tip: ${tipPercent}%`;
+// --- STATE ---
+let amountStr = '0';
+let tipPercent = 0;
+let activeMode: 'amount' | 'tip' = 'amount';
 
-                // Update active tip button
-                tipButtons.forEach(btn => {
-                    const button = btn as HTMLButtonElement;
-                    button.classList.remove('active');
-                    if (button.dataset.tip === String(tipPercent) || (tipPercent > 0 && button.dataset.tip === 'custom' && ![0, 15, 18, 20].includes(tipPercent))) {
-                        button.classList.add('active');
-                    } else if (tipPercent === 0 && button.dataset.tip === '0') {
-                        button.classList.add('active');
-                    }
-                });
-            }
+// --- DOM ELEMENTS (for updating) ---
+const totalDisplay = document.getElementById('total-display') as HTMLElement;
+const tipDisplay = document.getElementById('tip-display') as HTMLElement;
+const tipButtons = document.querySelectorAll('.tip-btn');
 
-            function handleNumberInput(key: string) {
-                // Logic for entering the main amount
-                if (activeMode === 'amount') {
-                    if (key === '.' && amountStr.includes('.')) return; // No double decimals
-                    if (amountStr === '0' && key !== '.') {
-                        amountStr = key;
-                    } else {
-                        // Limit to 2 decimal places
-                        const decimalIndex = amountStr.indexOf('.');
-                        if (decimalIndex !== -1 && amountStr.length - decimalIndex > 2) return;
-                        amountStr += key;
-                    }
-                }
-                // Logic for entering a custom tip
-                else if (activeMode === 'tip') {
-                    if (key === '.') return; // No decimal tips
-                    const currentTipStr = String(tipPercent);
-                    const newTipStr = currentTipStr === '0' ? key : currentTipStr + key;
-                    tipPercent = parseInt(newTipStr, 10);
-                    if (tipPercent > 100) tipPercent = 100; // Cap tip at 100%
-                }
-                updateDisplay();
-            }
+// --- LOGIC ---
+function calculateTotal() {
+	const baseAmount = parseFloat(amountStr) || 0;
+	return baseAmount * (1 + tipPercent / 100);
+}
 
-            function handleBackspace() {
-                if (activeMode === 'amount') {
-                    if (amountStr.length > 1) {
-                        amountStr = amountStr.slice(0, -1);
-                    } else {
-                        amountStr = '0';
-                    }
-                } else if (activeMode === 'tip') {
-                    const tipStr = String(tipPercent);
-                     if (tipStr.length > 1) {
-                        tipPercent = parseInt(tipStr.slice(0, -1), 10);
-                    } else {
-                        tipPercent = 0;
-                    }
-                }
-                updateDisplay();
-            }
+function updateDOM() {
+	const finalTotal = calculateTotal();
+	totalDisplay.textContent = `$${finalTotal.toFixed(2)}`;
+	tipDisplay.textContent = `Tip: ${tipPercent}%`;
 
-            // --- EVENT LISTENERS ---
-            document.addEventListener('click', (e) => {
-                const target = e.target as HTMLElement;
+	tipButtons.forEach(btn => {
+		const button = btn as HTMLButtonElement;
+		button.classList.remove('active');
+		if (button.dataset.tip === String(tipPercent) || (tipPercent > 0 && button.dataset.tip === 'custom' && ![0, 15, 18, 20].includes(tipPercent))) {
+			button.classList.add('active');
+		} else if (tipPercent === 0 && button.dataset.tip === '0') {
+			button.classList.add('active');
+		}
+	});
+}
 
-                // Keypad numbers
-                if (target.matches('.num-btn')) {
-                    handleNumberInput(target.textContent!);
-                }
+function handleNumberInput(key: string) {
+	if (activeMode === 'amount') {
+		if (key === '.' && amountStr.includes('.')) return;
+		if (amountStr === '0' && key !== '.') amountStr = key;
+		else {
+			const decimalIndex = amountStr.indexOf('.');
+			if (decimalIndex !== -1 && amountStr.length - decimalIndex > 2) return;
+			amountStr += key;
+		}
+	} else if (activeMode === 'tip') {
+		if (key === '.') return;
+		const newTipStr = (tipPercent === 0 ? '' : String(tipPercent)) + key;
+		tipPercent = parseInt(newTipStr, 10);
+		if (tipPercent > 100) tipPercent = 100;
+	}
+	updateDOM();
+}
 
-                // Backspace
-                if (target.closest('#backspace-btn')) {
-                    handleBackspace();
-                }
+function handleBackspace() {
+	if (activeMode === 'amount') {
+		amountStr = amountStr.length > 1 ? amountStr.slice(0, -1) : '0';
+	} else if (activeMode === 'tip') {
+		const tipStr = String(tipPercent);
+		tipPercent = tipStr.length > 1 ? parseInt(tipStr.slice(0, -1), 10) : 0;
+	}
+	updateDOM();
+}
 
-                // Tip buttons
-                if (target.matches('.tip-btn')) {
-                    const tipValue = target.dataset.tip;
-                    if (tipValue === 'custom') {
-                        activeMode = 'tip';
-                        tipPercent = 0; // Reset to start typing a custom tip
-                    } else {
-                        activeMode = 'amount'; // Switch back to amount mode when a preset is chosen
-                        tipPercent = parseInt(tipValue!, 10);
-                    }
-                    updateDisplay();
-                }
+// --- EVENT LISTENERS (listening for events from child components) ---
+const app = document.getElementById('pos-app');
 
-                // Charge button
-                if (target.matches('#charge-btn')) {
-                    const finalTotal = calculateTotal();
-                    if (finalTotal <= 0) {
-                        alert("Please enter an amount.");
-                        return;
-                    }
-                    // In a real app, this is where you'd trigger the payment process.
-                    alert(`Charging a total of $${finalTotal.toFixed(2)}`);
-                    // Reset state after charge
-                    amountStr = '0';
-                    tipPercent = 0;
-                    activeMode = 'amount';
-                    updateDisplay();
-                }
-            });
+app?.addEventListener('keypad:input', (e: any) => handleNumberInput(e.detail.key));
+app?.addEventListener('keypad:backspace', () => handleBackspace());
 
-            // Initial render
-            updateDisplay();
-        </script>
-    </body>
+app?.addEventListener('tipchange', (e: any) => {
+	const tipValue = e.detail.tip;
+	if (tipValue === 'custom') {
+		activeMode = 'tip';
+		tipPercent = 0;
+	} else {
+		activeMode = 'amount';
+		tipPercent = parseInt(tipValue!, 10);
+	}
+	updateDOM();
+});
+
+document.getElementById('charge-btn')?.addEventListener('click', () => {
+	const finalTotal = calculateTotal();
+	if (finalTotal <= 0) {
+		alert("Please enter an amount.");
+		return;
+	}
+	alert(`Charging a total of $${finalTotal.toFixed(2)}`);
+	amountStr = '0';
+	tipPercent = 0;
+	activeMode = 'amount';
+	updateDOM();
+});
+</script>
+</body>
 </html>
