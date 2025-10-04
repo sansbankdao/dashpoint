@@ -1,7 +1,8 @@
 {
   "name": "dashpoint-store",
+  "license": "MIT",
   "type": "module",
-  "version": "0.0.1",
+  "version": "25.10.4",
   "scripts": {
     "dev": "astro dev",
     "build": "astro build",
@@ -9,6 +10,6 @@
     "astro": "astro"
   },
   "dependencies": {
-    "astro": "^5.14.1"
+    "astro": "5.14.1"
   }
 }
