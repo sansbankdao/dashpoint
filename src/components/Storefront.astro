@@ -1,6 +1,6 @@
 ---
 // src/components/Storefront.astro
-import ProductCard from './ProductCard.astro';
+import ProductCard from './ProductCard.astro'
 
 interface Product {
     id: number;
@@ -10,10 +10,10 @@ interface Product {
 }
 
 interface Props {
-    products: Product[];
+    products: Product[]
 }
 
-const { products } = Astro.props;
+const { products } = Astro.props
 ---
 
 <div class="min-h-screen flex items-center justify-center p-4">
@@ -49,51 +49,61 @@ const { products } = Astro.props;
     </div>
 </div>
 
-<script client:load>
-    // Simple in-memory cart
-    let cartTotal = 0.00;
-    const cartItems = [];
+<script>
+interface ICartItem {
+    id: number;
+    title: string;
+    price: number;
+    amount: number;
+}
+// Simple in-memory cart
+let cartTotal = 0.00;
+const cartItems: ICartItem[] = []
 
-    // DOM Elements
-    const productCards = document.querySelectorAll('.product-card');
-    const totalAmountEl = document.getElementById('total-amount');
-    const payButton = document.getElementById('pay-button');
+// DOM Elements
+const productCards = document.querySelectorAll('.product-card')
+const totalAmountEl = document.getElementById('total-amount')
+const payButton = document.getElementById('pay-button') as HTMLButtonElement
 
-    function updateTotalDisplay() {
-        totalAmountEl.textContent = `$${cartTotal.toFixed(2)}`;
-        payButton.disabled = cartTotal === 0;
-    }
+function updateTotalDisplay() {
+    totalAmountEl!.textContent = `$${cartTotal.toFixed(2)}`
+    payButton!.disabled = cartTotal === 0
+}
 
-    function handleProductClick(event) {
-        const card = event.currentTarget;
-        const price = parseFloat(card.dataset.price);
-        const title = card.dataset.title;
-        const id = parseInt(card.dataset.id, 10);
+function handleProductClick(event: MouseEvent) {
+    const card = event.currentTarget as HTMLButtonElement
 
-        // Add to cart logic
-        cartTotal += price;
-        cartItems.push({ id, title, price });
+    if (card === null) return
+    if (card.dataset === null) return
 
-        // Update UI
-        updateTotalDisplay();
+    const price = parseFloat(card.dataset.price!)
+    const title = card.dataset.title!
+    const id = parseInt(card.dataset.id!, 10)
 
-        console.log('Cart:', cartItems);
-        console.log('Total:', cartTotal.toFixed(2));
-    }
+    // Add to cart logic
+    cartTotal += price;
+    cartItems.push({ id, title, price } as ICartItem);
 
-    // Attach event listeners
-    productCards.forEach(card => {
-        card.addEventListener('click', handleProductClick);
-    });
-
-    // Pay button functionality (for demonstration)
-    payButton.addEventListener('click', () => {
-        if (cartTotal > 0) {
-            alert(`Proceeding to pay $${cartTotal.toFixed(2)}\nItems: ${JSON.stringify(cartItems, null, 2)}`);
-            // In a real app, this would redirect to a payment page (like BTCPay Server's invoice page)
-        }
-    });
-
-    // Initial state
+    // Update UI
     updateTotalDisplay();
+
+    console.log('Cart:', cartItems);
+    console.log('Total:', cartTotal.toFixed(2));
+}
+
+// Attach event listeners
+productCards.forEach(card => {
+    card.addEventListener('click', handleProductClick);
+});
+
+// Pay button functionality (for demonstration)
+payButton.addEventListener('click', () => {
+    if (cartTotal > 0) {
+        alert(`Proceeding to pay $${cartTotal.toFixed(2)}\nItems: ${JSON.stringify(cartItems, null, 2)}`);
+        // In a real app, this would redirect to a payment page (like BTCPay Server's invoice page)
+    }
+});
+
+// Initial state
+updateTotalDisplay();
 </script>
