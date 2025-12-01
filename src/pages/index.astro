@@ -1,7 +1,6 @@
 ---
 // src/pages/index.astro
 import '../styles/global.css'
-
 import Display from '../components/Display.astro'
 import ModeTabs from '../components/ModeTabs.astro'
 import ModeContent from '../components/ModeContent.astro'
@@ -23,46 +22,25 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
 ---
 
 <!DOCTYPE html>
-<html lang="en" class="h-100">
+<html lang="en" class="h-screen">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>DashPoint POS</title>
-    <link rel="manifest" href="data:application/manifest+json,{
-        'name': 'DashPoint POS',
-        'short_name': 'DashPoint',
-        'background_color': 'white',
-        'display': 'standalone',
-        'icons': []
-    }">
     <meta name="apple-mobile-web-app-capable" content="yes">
 </head>
-<body class="min-vh-100 bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 text-slate-900 dark:text-slate-100">
-    <div id="pos-app" class="public-page-wrap h-100 d-flex flex-column">
+<body class="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 text-slate-900 dark:text-slate-100 flex flex-col">
+    <div id="pos-app" class="flex flex-col h-full min-h-screen">
         <!-- Store Header -->
-        <header class="store-header bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 px-4 py-3 shadow-sm">
-            <h1 class="store-name text-2xl font-bold text-center">DashPoint POS</h1>
+        <header class="bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm border-b border-slate-200 dark:border-slate-700 px-6 py-4 shadow-sm sticky top-0 z-50">
+            <h1 class="text-2xl font-bold text-center">DashPoint POS</h1>
         </header>
 
-        <main class="d-flex flex-column gap-4 my-auto px-4">
+        <main class="flex flex-col gap-6 my-auto px-6 flex-1 justify-center">
             <!-- Display Area -->
-            <div class="d-flex flex-column align-items-center px-4 mb-auto flex-grow-1 justify-content-center">
-                <Display
-                    client:load
-                    amount={amountStr}
-                    discount={discountPercent}
-                    tip={tipPercent}
-                    baseAmount={baseAmount}
-                    total={initialTotal}
-                />
-
-                <!-- Mode Content -->
-                <ModeContent
-                    client:load
-                    activeMode="amount"
-                    discountPercent={discountPercent}
-                    tipPercent={tipPercent}
-                />
+            <div class="flex flex-col items-center px-6 mb-auto flex-grow justify-center min-h-[40vh]">
+                <Display client:load />
+                <ModeContent client:load />
             </div>
 
             <!-- Mode Tabs -->
@@ -73,16 +51,18 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
         </main>
 
         <!-- Charge Button -->
-        <div class="px-4 pb-6">
-            <button id="charge-btn" class="w-100 btn-primary rounded-lg py-4 text-xl font-bold shadow-lg hover:shadow-xl transition-all duration-200 btn btn-lg" disabled>
+        <div class="px-6 pb-8">
+            <button id="charge-btn"
+                class="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 disabled:from-slate-400 disabled:to-slate-500 text-white font-bold py-5 px-6 rounded-2xl text-xl shadow-2xl hover:shadow-3xl active:translate-y-0.5 transition-all duration-200 disabled:cursor-not-allowed disabled:shadow-lg flex items-center justify-center h-16 disabled:transform-none text-lg"
+                disabled>
                 Charge
             </button>
         </div>
 
         <!-- Footer -->
-        <footer class="store-footer bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm border-t border-slate-200 dark:border-slate-700 px-4 py-3 mt-auto">
-            <div class="store-powered-by text-center text-sm text-slate-500 dark:text-slate-400">
-                Powered by <strong>DashPoint POS</strong>
+        <footer class="bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm border-t border-slate-200 dark:border-slate-700 px-6 py-4 mt-auto">
+            <div class="text-center text-sm text-slate-500 dark:text-slate-400">
+                Powered by <strong class="text-slate-900 dark:text-slate-100">DashPoint POS</strong>
             </div>
         </footer>
     </div>
@@ -160,7 +140,6 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
         }
 
         function updateDOM() {
-            // Update display via custom events
             app?.dispatchEvent(new CustomEvent('stateupdate', {
                 detail: {
                     amountStr,
@@ -177,10 +156,10 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
                 composed: true
             }))
 
-            // Update charge button
             const total = calculateTotal()
             chargeBtn!.textContent = total > 0 ? `Charge ${formatCurrency(total)}` : 'Charge'
             chargeBtn!.disabled = total <= 0 || !hasBaseAmount
+            ;(chargeBtn! as HTMLButtonElement).disabled = total <= 0 || !hasBaseAmount
         }
 
         function handleKeyInput(key: string) {
@@ -205,7 +184,7 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
                     const newDiscount = parseInt(newDiscountStr, 10)
                     if (newDiscount > 100) return
                     discountPercent = newDiscount
-                    amountStr = String(newDiscount) // For display consistency
+                    amountStr = String(newDiscount)
                     break
 
                 case 'tip':
@@ -215,7 +194,7 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
                     const newTip = parseInt(newTipStr, 10)
                     if (newTip > 100) return
                     tipPercent = newTip
-                    amountStr = String(newTip) // For display consistency
+                    amountStr = String(newTip)
                     break
             }
             updateDOM()
@@ -247,7 +226,6 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
             updateDOM()
         }
 
-        // Charge button
         chargeBtn?.addEventListener('click', () => {
             const total = calculateTotal()
             if (total <= 0 || !hasBaseAmount) {

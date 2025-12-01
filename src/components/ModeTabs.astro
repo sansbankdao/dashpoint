@@ -2,68 +2,63 @@
 // src/components/ModeTabs.astro
 ---
 
-<div id="ModeTablist" class="mode-tablist" role="tablist">
-    <div class="d-flex gap-2">
-        <!-- Amount Tab -->
-        <div class="mode-tab-wrapper">
-            <input
-                id="ModeTablist-amounts"
-                name="mode"
-                value="amount"
-                type="radio"
-                role="tab"
-                data-bs-target="#Mode-amount"
-                aria-controls="Mode-amount"
-                checked
-                class="mode-input"
-            >
-            <label for="ModeTablist-amounts" class="btcpay-pill mode-label active">
-                Amount
-            </label>
-        </div>
+<div class="flex items-center justify-center gap-2 mb-6 pb-1" role="tablist">
+    <!-- Amount Tab -->
+    <div class="relative">
+        <input
+            id="ModeTablist-amounts"
+            name="mode"
+            value="amount"
+            type="radio"
+            role="tab"
+            checked
+            class="absolute opacity-0 w-0 h-0"
+        >
+        <label for="ModeTablist-amounts"
+               class="px-4 py-2 rounded-full text-sm font-medium border-2 border-blue-500 bg-blue-500 text-white shadow-lg scale-105 cursor-pointer hover:shadow-xl transition-all duration-200 whitespace-nowrap">
+            Amount
+        </label>
+    </div>
 
-        <!-- Discount Tab -->
-        <div class="mode-tab-wrapper">
-            <input
-                id="ModeTablist-discount"
-                name="mode"
-                value="discount"
-                type="radio"
-                role="tab"
-                data-bs-target="#Mode-discount"
-                aria-controls="Mode-discount"
-                class="mode-input"
-                disabled
-            >
-            <label for="ModeTablist-discount" class="btcpay-pill mode-label">
-                Discount
-            </label>
-        </div>
+    <!-- Discount Tab -->
+    <div class="relative">
+        <input
+            id="ModeTablist-discount"
+            name="mode"
+            value="discount"
+            type="radio"
+            role="tab"
+            disabled
+            class="absolute opacity-0 w-0 h-0"
+        >
+        <label for="ModeTablist-discount"
+               class="px-4 py-2 rounded-full text-sm font-medium border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 cursor-not-allowed opacity-50 whitespace-nowrap">
+            Discount
+        </label>
+    </div>
 
-        <!-- Tip Tab -->
-        <div class="mode-tab-wrapper">
-            <input
-                id="ModeTablist-tip"
-                name="mode"
-                value="tip"
-                type="radio"
-                role="tab"
-                data-bs-target="#Mode-tip"
-                aria-controls="Mode-tip"
-                class="mode-input"
-                disabled
-            >
-            <label for="ModeTablist-tip" class="btcpay-pill mode-label">
-                Tip
-            </label>
-        </div>
+    <!-- Tip Tab -->
+    <div class="relative">
+        <input
+            id="ModeTablist-tip"
+            name="mode"
+            value="tip"
+            type="radio"
+            role="tab"
+            disabled
+            class="absolute opacity-0 w-0 h-0"
+        >
+        <label for="ModeTablist-tip"
+               class="px-4 py-2 rounded-full text-sm font-medium border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 cursor-not-allowed opacity-50 whitespace-nowrap">
+            Tip
+        </label>
     </div>
 </div>
 
 <script>
     const app = document.getElementById('pos-app')
-    const inputs = document.querySelectorAll('.mode-input') as NodeListOf<HTMLInputElement>
-    const labels = document.querySelectorAll('.mode-label')
+    const inputs = document.querySelectorAll('.absolute.opacity-0') as NodeListOf<HTMLInputElement>
+    const labels = document.querySelectorAll('label')
 
     inputs.forEach((input, index) => {
         input.addEventListener('change', () => {
@@ -74,17 +69,10 @@
                     bubbles: true,
                     composed: true
                 }))
-
-                // Update visual states
-                labels.forEach((label, i) => {
-                    label.classList.toggle('active', i === index)
-                    label.classList.toggle('disabled', i !== index)
-                })
             }
         })
     })
 
-    // Listen for state updates to enable/disable tabs
     app?.addEventListener('stateupdate', (e: any) => {
         const { hasBaseAmount } = e.detail
         const discountInput = document.getElementById('ModeTablist-discount') as HTMLInputElement
@@ -95,29 +83,13 @@
         const isEnabled = hasBaseAmount
         discountInput.disabled = !isEnabled
         tipInput.disabled = !isEnabled
-        discountLabel.classList.toggle('disabled', !isEnabled)
-        tipLabel.classList.toggle('disabled', !isEnabled)
+        discountLabel.classList.toggle('opacity-50', !isEnabled)
+        discountLabel.classList.toggle('cursor-not-allowed', !isEnabled)
+        discountLabel.classList.toggle('bg-slate-100', !isEnabled)
+        discountLabel.classList.toggle('dark:bg-slate-800/50', !isEnabled)
+        tipLabel.classList.toggle('opacity-50', !isEnabled)
+        tipLabel.classList.toggle('cursor-not-allowed', !isEnabled)
+        tipLabel.classList.toggle('bg-slate-100', !isEnabled)
+        tipLabel.classList.toggle('dark:bg-slate-800/50', !isEnabled)
     })
 </script>
-
-<style>
-    .mode-tablist {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        margin-bottom: 0.75rem;
-        padding-bottom: 0.25rem;
-        gap: 0.5rem;
-    }
-
-    .mode-tab-wrapper {
-        position: relative;
-    }
-
-    .mode-input {
-        position: absolute;
-        opacity: 0;
-        width: 0;
-        height: 0;
-    }
-</style>

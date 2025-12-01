@@ -2,24 +2,27 @@
 // src/components/Display.astro
 ---
 
-<div class="display-container">
+<div class="w-full flex flex-col items-center justify-center min-h-[40vh] p-4">
     <!-- Currency -->
-    <div class="currency-display" id="Currency">
+    <div class="text-slate-500 dark:text-slate-400 font-semibold text-lg mb-2" id="Currency">
         USD
     </div>
 
     <!-- Main Amount -->
-    <div id="Amount" class="amount-display">
+    <div id="Amount"
+         class="font-black text-center mb-2 leading-tight transition-all duration-200 text-5xl md:text-6xl lg:text-7xl tracking-tightest"
+         style="line-height: 1;">
         $0.00
     </div>
 
     <!-- Total -->
-    <div id="Total" class="total-display">
+    <div id="Total"
+         class="font-black text-center mb-2 text-2xl transition-all duration-200 hidden">
         Total: $0.00
     </div>
 
     <!-- Calculation -->
-    <div class="calculation-display" id="Calculation">
+    <div class="text-slate-500 dark:text-slate-400 text-center text-base mt-2" id="Calculation">
 
     </div>
 </div>
@@ -36,68 +39,20 @@
     app?.addEventListener('stateupdate', (e: any) => {
         const state = e.detail
 
-        // Update currency display
         document.getElementById('Currency')!.textContent = 'USD'
 
-        // Update amount with dynamic font sizing
         const amountEl = document.getElementById('Amount')!
         amountEl.textContent = formatCurrency(parseFloat(state.amountStr))
         amountEl.style.fontSize = state.fontSize
 
-        // Update total
         const totalEl = document.getElementById('Total')!
         const showTotal = state.total !== parseFloat(state.amountStr)
-        totalEl.style.display = showTotal ? 'block' : 'none'
+        totalEl.classList.toggle('hidden', !showTotal)
         if (showTotal) {
             totalEl.textContent = `Total: ${formatCurrency(state.total)}`
             totalEl.style.fontSize = `${parseFloat(state.fontSize) / 3}px`
         }
 
-        // Update calculation
         document.getElementById('Calculation')!.textContent = state.calculation
     })
 </script>
-
-<style>
-    .display-container {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        width: 100%;
-        min-height: 40vh;
-        padding: 1rem;
-    }
-
-    .currency-display {
-        font-weight: 600;
-        color: rgb(148 163 184);
-        font-size: 1.125rem;
-        margin-bottom: 0.5rem;
-    }
-
-    .amount-display {
-        font-weight: 700;
-        line-height: 1.1;
-        text-align: center;
-        margin-bottom: 0.5rem;
-        letter-spacing: -0.02em;
-        transition: all 200ms ease;
-    }
-
-    .total-display {
-        font-weight: 700;
-        line-height: 1.1;
-        text-align: center;
-        margin-bottom: 0.5rem;
-        font-size: 1.5rem;
-        display: none;
-        transition: all 200ms ease;
-    }
-
-    .calculation-display {
-        color: rgb(148 163 184);
-        text-align: center;
-        margin-top: 0.5rem;
-        font-size: 1.125rem;
-    }
-</style>
