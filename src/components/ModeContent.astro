@@ -1,0 +1,110 @@
+---
+// src/components/ModeContent.astro
+---
+
+<div id="ModeTabs" class="tab-content w-100 mb-n2">
+    <!-- Discount Mode Content -->
+    <div id="Mode-Discount" class="tab-pane fade px-3 py-4" role="tabpanel" aria-labelledby="ModeTablist-discount">
+        <div class="discount-display">
+            <span class="discount-number">0</span>% discount
+        </div>
+    </div>
+
+    <!-- Tip Mode Content -->
+    <div id="Mode-Tip" class="tab-pane fade px-3 py-4" role="tabpanel" aria-labelledby="ModeTablist-tip">
+        <div class="tip-buttons d-flex flex-wrap align-items-center justify-content-center gap-2">
+            <button type="button" class="btcpay-pill" data-tip="custom">
+                Custom
+            </button>
+            <button type="button" class="btcpay-pill" data-tip="15">15%</button>
+            <button type="button" class="btcpay-pill" data-tip="18">18%</button>
+            <button type="button" class="btcpay-pill" data-tip="20">20%</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    const app = document.getElementById('pos-app')
+
+    // Tip button handlers
+    document.querySelectorAll('#Mode-Tip .btcpay-pill').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const tipValue = (btn as HTMLElement).dataset.tip
+            if (tipValue === 'custom') {
+                // Custom tip - let keypad handle it
+                const event = new CustomEvent('modechange', {
+                    detail: { mode: 'tip' },
+                    bubbles: true,
+                    composed: true
+                })
+                app?.dispatchEvent(event)
+            } else {
+                // Preset tip
+                app?.dispatchEvent(new CustomEvent('tip:preset', {
+                    detail: { tip: parseInt(tipValue!) },
+                    bubbles: true,
+                    composed: true
+                }))
+            }
+        })
+    })
+
+    // Listen for state updates to show correct tab content
+    app?.addEventListener('stateupdate', (e: any) => {
+        const { activeMode, discountPercent, tipPercent } = e.detail
+
+        // Update active tab content
+        document.querySelectorAll('.tab-pane').forEach(pane => {
+            pane.classList.remove('show', 'active')
+        })
+
+        const activePane = document.getElementById(`Mode-${activeMode}`)
+        if (activePane) {
+            activePane.classList.add('show', 'active')
+        }
+
+        // Update discount display
+        const discountEl = document.querySelector('#Mode-Discount .discount-number')
+        if (discountEl) {
+            discountEl.textContent = `${discountPercent || 0}`
+        }
+
+        // Update tip buttons
+        document.querySelectorAll('#Mode-Tip .btcpay-pill').forEach(btn => {
+            const btnTip = parseInt((btn as HTMLElement).dataset.tip!)
+            btn.classList.toggle('active', btnTip === tipPercent)
+        })
+    })
+</script>
+
+<style>
+    .tab-content {
+        width: 100%;
+        margin-bottom: -0.5rem;
+    }
+
+    .tab-pane {
+        display: none;
+    }
+
+    .tab-pane.show.active {
+        display: block;
+    }
+
+    .discount-display {
+        font-size: 1.75rem;
+        font-weight: 600;
+        color: rgb(148 163 184);
+        text-align: center;
+    }
+
+    .discount-number {
+        font-size: 2.25rem;
+        color: rgb(59 130 246);
+        margin-right: 0.5rem;
+    }
+
+    .tip-buttons {
+        gap: 0.5rem;
+    }
+</style>

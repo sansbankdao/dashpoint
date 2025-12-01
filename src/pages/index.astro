@@ -2,144 +2,272 @@
 // src/pages/index.astro
 import '../styles/global.css'
 
-// Import the new components
 import Display from '../components/Display.astro'
-import TipSelector from '../components/TipSelector.astro'
+import ModeTabs from '../components/ModeTabs.astro'
+import ModeContent from '../components/ModeContent.astro'
 import Keypad from '../components/Keypad.astro'
 
-// The state is defined once at the top for Server-Side Rendering (SSR)
-// It will be dynamically updated on the client via the script below.
+// SSR state
 let amountStr = '0'
+let discountPercent = 0
 let tipPercent = 0
+let baseAmount = 0
 
-function calculateTotal(amount: string, tip: number): number {
-    const baseAmount = parseFloat(amount) || 0
-    const total = baseAmount * (1 + tip / 100)
-    return total
+function calculateTotal(amount: string, discount: number, tip: number): number {
+    const base = parseFloat(amount) || 0
+    const afterDiscount = base * (1 - discount / 100)
+    return afterDiscount * (1 + tip / 100)
 }
-const initialTotal = calculateTotal(amountStr, tipPercent)
+
+const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
 ---
 
-<html lang="en">
+<!DOCTYPE html>
+<html lang="en" class="h-100">
 <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width" />
-    <meta name="generator" content={Astro.generator} />
-
-	<title>DashPoint POS</title>
-
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>DashPoint POS</title>
+    <link rel="manifest" href="data:application/manifest+json,{
+        'name': 'DashPoint POS',
+        'short_name': 'DashPoint',
+        'background_color': 'white',
+        'display': 'standalone',
+        'icons': []
+    }">
+    <meta name="apple-mobile-web-app-capable" content="yes">
 </head>
+<body class="min-vh-100 bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 text-slate-900 dark:text-slate-100">
+    <div id="pos-app" class="public-page-wrap h-100 d-flex flex-column">
+        <!-- Store Header -->
+        <header class="store-header bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 px-4 py-3 shadow-sm">
+            <h1 class="store-name text-2xl font-bold text-center">DashPoint POS</h1>
+        </header>
 
-<body class="bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-200 flex items-center justify-center min-h-screen">
+        <main class="d-flex flex-column gap-4 my-auto px-4">
+            <!-- Display Area -->
+            <div class="d-flex flex-column align-items-center px-4 mb-auto flex-grow-1 justify-content-center">
+                <Display
+                    client:load
+                    amount={amountStr}
+                    discount={discountPercent}
+                    tip={tipPercent}
+                    baseAmount={baseAmount}
+                    total={initialTotal}
+                />
 
-<main id="pos-app" class="w-full max-w-sm mx-auto bg-white dark:bg-slate-800 rounded-lg shadow-xl p-6 font-sans">
+                <!-- Mode Content -->
+                <ModeContent
+                    client:load
+                    activeMode="amount"
+                    discountPercent={discountPercent}
+                    tipPercent={tipPercent}
+                />
+            </div>
 
-	<!-- Components are placed here. Props are passed down. -->
-	<Display total={initialTotal} tipPercent={tipPercent} />
-	<TipSelector activeTip={tipPercent} />
-	<Keypad />
+            <!-- Mode Tabs -->
+            <ModeTabs client:load />
 
-	<!-- The Charge button remains here as it's the final action of the page -->
-	<button id="charge-btn" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-4 rounded-lg text-xl transition-colors">
-		Charge
-	</button>
-</main>
+            <!-- Keypad -->
+            <Keypad client:load />
+        </main>
 
-<script>
-// --- CLIENT-SIDE SCRIPT FOR INTERACTIVITY ---
-// This single script on the main page manages all state.
+        <!-- Charge Button -->
+        <div class="px-4 pb-6">
+            <button id="charge-btn" class="w-100 btn-primary rounded-lg py-4 text-xl font-bold shadow-lg hover:shadow-xl transition-all duration-200 btn btn-lg" disabled>
+                Charge
+            </button>
+        </div>
 
-// --- STATE ---
-let amountStr = '0';
-let tipPercent = 0;
-let activeMode: 'amount' | 'tip' = 'amount';
+        <!-- Footer -->
+        <footer class="store-footer bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm border-t border-slate-200 dark:border-slate-700 px-4 py-3 mt-auto">
+            <div class="store-powered-by text-center text-sm text-slate-500 dark:text-slate-400">
+                Powered by <strong>DashPoint POS</strong>
+            </div>
+        </footer>
+    </div>
 
-// --- DOM ELEMENTS (for updating) ---
-const totalDisplay = document.getElementById('total-display') as HTMLElement;
-const tipDisplay = document.getElementById('tip-display') as HTMLElement;
-const tipButtons = document.querySelectorAll('.tip-btn');
+    <script>
+        // --- CENTRAL STATE MANAGEMENT ---
+        let amountStr = '0'
+        let discountPercent = 0
+        let tipPercent = 0
+        let baseAmount = 0
+        let activeMode = 'amount' // 'amount', 'discount', 'tip'
+        let hasBaseAmount = false
 
-// --- LOGIC ---
-function calculateTotal() {
-	const baseAmount = parseFloat(amountStr) || 0;
-	return baseAmount * (1 + tipPercent / 100);
-}
+        // DOM Elements
+        const app = document.getElementById('pos-app')
+        const chargeBtn = document.getElementById('charge-btn')
 
-function updateDOM() {
-	const finalTotal = calculateTotal();
-	totalDisplay.textContent = `$${finalTotal.toFixed(2)}`;
-	tipDisplay.textContent = `Tip: ${tipPercent}%`;
+        // Custom Events
+        app?.addEventListener('modechange', (e: any) => {
+            activeMode = e.detail.mode
+            updateDOM()
+        })
 
-	tipButtons.forEach(btn => {
-		const button = btn as HTMLButtonElement;
-		button.classList.remove('active');
-		if (button.dataset.tip === String(tipPercent) || (tipPercent > 0 && button.dataset.tip === 'custom' && ![0, 15, 18, 20].includes(tipPercent))) {
-			button.classList.add('active');
-		} else if (tipPercent === 0 && button.dataset.tip === '0') {
-			button.classList.add('active');
-		}
-	});
-}
+        app?.addEventListener('keypad:input', (e: any) => {
+            handleKeyInput(e.detail.key)
+        })
 
-function handleNumberInput(key: string) {
-	if (activeMode === 'amount') {
-		if (key === '.' && amountStr.includes('.')) return;
-		if (amountStr === '0' && key !== '.') amountStr = key;
-		else {
-			const decimalIndex = amountStr.indexOf('.');
-			if (decimalIndex !== -1 && amountStr.length - decimalIndex > 2) return;
-			amountStr += key;
-		}
-	} else if (activeMode === 'tip') {
-		if (key === '.') return;
-		const newTipStr = (tipPercent === 0 ? '' : String(tipPercent)) + key;
-		tipPercent = parseInt(newTipStr, 10);
-		if (tipPercent > 100) tipPercent = 100;
-	}
-	updateDOM();
-}
+        app?.addEventListener('keypad:clear', () => {
+            handleClear()
+        })
 
-function handleBackspace() {
-	if (activeMode === 'amount') {
-		amountStr = amountStr.length > 1 ? amountStr.slice(0, -1) : '0';
-	} else if (activeMode === 'tip') {
-		const tipStr = String(tipPercent);
-		tipPercent = tipStr.length > 1 ? parseInt(tipStr.slice(0, -1), 10) : 0;
-	}
-	updateDOM();
-}
+        app?.addEventListener('keypad:add', () => {
+            handleAdd()
+        })
 
-// --- EVENT LISTENERS (listening for events from child components) ---
-const app = document.getElementById('pos-app');
+        app?.addEventListener('tip:preset', (e: any) => {
+            tipPercent = e.detail.tip
+            activeMode = 'amount'
+            updateDOM()
+        })
 
-app?.addEventListener('keypad:input', (e: any) => handleNumberInput(e.detail.key));
-app?.addEventListener('keypad:backspace', () => handleBackspace());
+        // Core Logic
+        function calculateTotal() {
+            const base = parseFloat(amountStr) || 0
+            const afterDiscount = base * (1 - discountPercent / 100)
+            return afterDiscount * (1 + tipPercent / 100)
+        }
 
-app?.addEventListener('tipchange', (e: any) => {
-	const tipValue = e.detail.tip;
-	if (tipValue === 'custom') {
-		activeMode = 'tip';
-		tipPercent = 0;
-	} else {
-		activeMode = 'amount';
-		tipPercent = parseInt(tipValue!, 10);
-	}
-	updateDOM();
-});
+        function formatCurrency(value: number, withSymbol = true): string {
+            return (withSymbol ? '$' : '') + value.toLocaleString('en-US', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            })
+        }
 
-document.getElementById('charge-btn')?.addEventListener('click', () => {
-	const finalTotal = calculateTotal();
-	if (finalTotal <= 0) {
-		alert("Please enter an amount.");
-		return;
-	}
-	alert(`Charging a total of $${finalTotal.toFixed(2)}`);
-	amountStr = '0';
-	tipPercent = 0;
-	activeMode = 'amount';
-	updateDOM();
-});
-</script>
+        function getDynamicFontSize(amountStr: string): string {
+            const length = amountStr.replace('.', '').length
+            const baseSize = 72
+            const reduction = Math.max(0, (length - 4) * 8)
+            return `${Math.max(32, baseSize - reduction)}px`
+        }
+
+        function getCalculationText(): string {
+            const base = parseFloat(amountStr) || 0
+            const afterDiscount = base * (1 - discountPercent / 100)
+            let calc = formatCurrency(base, false)
+
+            if (discountPercent > 0) {
+                calc += ` - ${formatCurrency(base * discountPercent / 100, true)} (${discountPercent}%)`
+            }
+            if (tipPercent > 0) {
+                calc += ` + ${formatCurrency(afterDiscount * tipPercent / 100, true)} (${tipPercent}%)`
+            }
+            return calc
+        }
+
+        function updateDOM() {
+            // Update display via custom events
+            app?.dispatchEvent(new CustomEvent('stateupdate', {
+                detail: {
+                    amountStr,
+                    discountPercent,
+                    tipPercent,
+                    baseAmount,
+                    total: calculateTotal(),
+                    activeMode,
+                    hasBaseAmount,
+                    fontSize: getDynamicFontSize(amountStr),
+                    calculation: getCalculationText()
+                },
+                bubbles: true,
+                composed: true
+            }))
+
+            // Update charge button
+            const total = calculateTotal()
+            chargeBtn!.textContent = total > 0 ? `Charge ${formatCurrency(total)}` : 'Charge'
+            chargeBtn!.disabled = total <= 0 || !hasBaseAmount
+        }
+
+        function handleKeyInput(key: string) {
+            if (!['0','1','2','3','4','5','6','7','8','9','.'].includes(key)) return
+
+            switch(activeMode) {
+                case 'amount':
+                    if (key === '.' && amountStr.includes('.')) return
+                    if (amountStr === '0' && key !== '.') {
+                        amountStr = key
+                    } else {
+                        const decimalIndex = amountStr.indexOf('.')
+                        if (decimalIndex !== -1 && amountStr.length - decimalIndex > 3) return
+                        amountStr += key
+                    }
+                    break
+
+                case 'discount':
+                    if (key === '.') return
+                    const discountNum = parseInt(amountStr) || 0
+                    const newDiscountStr = (discountNum === 0 ? '' : String(discountNum)) + key
+                    const newDiscount = parseInt(newDiscountStr, 10)
+                    if (newDiscount > 100) return
+                    discountPercent = newDiscount
+                    amountStr = String(newDiscount) // For display consistency
+                    break
+
+                case 'tip':
+                    if (key === '.') return
+                    const tipNum = parseInt(amountStr) || 0
+                    const newTipStr = (tipNum === 0 ? '' : String(tipNum)) + key
+                    const newTip = parseInt(newTipStr, 10)
+                    if (newTip > 100) return
+                    tipPercent = newTip
+                    amountStr = String(newTip) // For display consistency
+                    break
+            }
+            updateDOM()
+        }
+
+        function handleClear() {
+            switch(activeMode) {
+                case 'amount':
+                    amountStr = '0'
+                    break
+                case 'discount':
+                    discountPercent = 0
+                    amountStr = '0'
+                    break
+                case 'tip':
+                    tipPercent = 0
+                    amountStr = '0'
+                    break
+            }
+            updateDOM()
+        }
+
+        function handleAdd() {
+            if (activeMode === 'amount' && parseFloat(amountStr) > 0) {
+                baseAmount += parseFloat(amountStr)
+                amountStr = '0'
+                hasBaseAmount = true
+            }
+            updateDOM()
+        }
+
+        // Charge button
+        chargeBtn?.addEventListener('click', () => {
+            const total = calculateTotal()
+            if (total <= 0 || !hasBaseAmount) {
+                alert('Please enter a valid amount.')
+                return
+            }
+            alert(`Charging $${total.toFixed(2)} (Base: $${baseAmount.toFixed(2)}, Discount: ${discountPercent}%, Tip: ${tipPercent}%)`)
+
+            // Reset
+            amountStr = '0'
+            discountPercent = 0
+            tipPercent = 0
+            baseAmount = 0
+            hasBaseAmount = false
+            activeMode = 'amount'
+            updateDOM()
+        })
+
+        // Initial update
+        updateDOM()
+    </script>
 </body>
 </html>

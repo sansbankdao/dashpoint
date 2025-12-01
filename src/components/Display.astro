@@ -1,25 +1,103 @@
 ---
 // src/components/Display.astro
-export interface Props {
-    total: number
-    tipPercent: number
-}
-
-const { total, tipPercent } = Astro.props
 ---
 
-<div class="text-center mb-4">
-    <span class="text-slate-500 dark:text-slate-400">
+<div class="display-container">
+    <!-- Currency -->
+    <div class="currency-display" id="Currency">
         USD
-    </span>
-
-    <div id="total-display" class="text-6xl font-light tracking-tight">
-        ${total.toFixed(2)}
     </div>
 
-    <div class="text-sm text-slate-400 dark:text-slate-500 mt-1">
-        <span id="tip-display">
-            Tip: {tipPercent}%
-        </span>
+    <!-- Main Amount -->
+    <div id="Amount" class="amount-display">
+        $0.00
+    </div>
+
+    <!-- Total -->
+    <div id="Total" class="total-display">
+        Total: $0.00
+    </div>
+
+    <!-- Calculation -->
+    <div class="calculation-display" id="Calculation">
+
     </div>
 </div>
+
+<script>
+    function formatCurrency(value: number, withSymbol = true): string {
+        return (withSymbol ? '$' : '') + value.toLocaleString('en-US', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        })
+    }
+
+    const app = document.getElementById('pos-app')
+    app?.addEventListener('stateupdate', (e: any) => {
+        const state = e.detail
+
+        // Update currency display
+        document.getElementById('Currency')!.textContent = 'USD'
+
+        // Update amount with dynamic font sizing
+        const amountEl = document.getElementById('Amount')!
+        amountEl.textContent = formatCurrency(parseFloat(state.amountStr))
+        amountEl.style.fontSize = state.fontSize
+
+        // Update total
+        const totalEl = document.getElementById('Total')!
+        const showTotal = state.total !== parseFloat(state.amountStr)
+        totalEl.style.display = showTotal ? 'block' : 'none'
+        if (showTotal) {
+            totalEl.textContent = `Total: ${formatCurrency(state.total)}`
+            totalEl.style.fontSize = `${parseFloat(state.fontSize) / 3}px`
+        }
+
+        // Update calculation
+        document.getElementById('Calculation')!.textContent = state.calculation
+    })
+</script>
+
+<style>
+    .display-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        width: 100%;
+        min-height: 40vh;
+        padding: 1rem;
+    }
+
+    .currency-display {
+        font-weight: 600;
+        color: rgb(148 163 184);
+        font-size: 1.125rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .amount-display {
+        font-weight: 700;
+        line-height: 1.1;
+        text-align: center;
+        margin-bottom: 0.5rem;
+        letter-spacing: -0.02em;
+        transition: all 200ms ease;
+    }
+
+    .total-display {
+        font-weight: 700;
+        line-height: 1.1;
+        text-align: center;
+        margin-bottom: 0.5rem;
+        font-size: 1.5rem;
+        display: none;
+        transition: all 200ms ease;
+    }
+
+    .calculation-display {
+        color: rgb(148 163 184);
+        text-align: center;
+        margin-top: 0.5rem;
+        font-size: 1.125rem;
+    }
+</style>

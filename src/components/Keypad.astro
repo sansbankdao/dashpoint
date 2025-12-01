@@ -1,34 +1,79 @@
 ---
 // src/components/Keypad.astro
 ---
-<div id="keypad-container" class="grid grid-cols-3 gap-2 mb-4">
-    {'123456789.0'.split('').map(key => (
-        <button class="keypad-btn num-btn">{key}</button>
-    ))}
-    <button id="backspace-btn" class="keypad-btn flex items-center justify-center">
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M12 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2M3 12l6.414 6.414a2 2 0 002.828 0L21 12M3 12l6.414-6.414a2 2 0 012.828 0L21 12" />
+
+<div class="keypad" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; margin-bottom: 1rem; max-width: 240px; margin-left: auto; margin-right: auto;">
+    <!-- Row 1 -->
+    <button class="key-btn" data-key="1">1</button>
+    <button class="key-btn" data-key="2">2</button>
+    <button class="key-btn" data-key="3">3</button>
+
+    <!-- Row 2 -->
+    <button class="key-btn" data-key="4">4</button>
+    <button class="key-btn" data-key="5">5</button>
+    <button class="key-btn" data-key="6">6</button>
+
+    <!-- Row 3 -->
+    <button class="key-btn" data-key="7">7</button>
+    <button class="key-btn" data-key="8">8</button>
+    <button class="key-btn" data-key="9">9</button>
+
+    <!-- Row 4 -->
+    <button class="key-btn" data-key="." style="aspect-ratio: 1;">.</button>
+    <button class="key-btn" data-key="0" style="aspect-ratio: 1;">0</button>
+    <button class="clear-btn key-btn" data-key="clear" style="aspect-ratio: 1;">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 24px; height: 24px;">
+            <path d="M18 6L6 18M6 6l12 12"/>
+        </svg>
+    </button>
+</div>
+
+<!-- Add Button -->
+<div style="display: flex; justify-content: end; margin-top: 0.5rem;">
+    <button class="add-btn" data-key="add" type="button" style="margin-left: auto;">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 24px; height: 24px;">
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <line x1="5" y1="12" x2="19" y2="12"></line>
         </svg>
     </button>
 </div>
 
 <script>
-document.getElementById('keypad-container')?.addEventListener('click', (e) => {
-    const target = e.target as HTMLElement;
-    let eventName: string | null = null;
-    let detail: object | null = null;
+    const container = document.querySelector('.keypad')!
 
-    if (target.matches('.num-btn')) {
-        eventName = 'keypad:input';
-        detail = { key: target.textContent };
-    } else if (target.closest('#backspace-btn')) {
-        eventName = 'keypad:backspace';
-        detail = {};
-    }
+    ;['.key-btn', '.add-btn'].forEach(selector => {
+        document.querySelectorAll(selector).forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const target = e.currentTarget as HTMLElement
+                const key = target.dataset.key
 
-    if (eventName) {
-        const event = new CustomEvent(eventName, { detail, bubbles: true, composed: true });
-        target.dispatchEvent(event);
-    }
-})
+                if (!key) return
+
+                // FIXED: Declare eventName first, then assign
+                const eventName = (() => {
+                    if (['0','1','2','3','4','5','6','7','8','9','.'].includes(key)) {
+                        return 'keypad:input'
+                    } else if (key === 'clear') {
+                        return 'keypad:clear'
+                    } else if (key === 'add') {
+                        return 'keypad:add'
+                    }
+                    return null
+                })()
+
+                if (!eventName) return
+
+                const detail: any = {}
+                if (eventName === 'keypad:input') {
+                    detail.key = key
+                }
+
+                container.dispatchEvent(new CustomEvent(eventName, {
+                    detail,
+                    bubbles: true,
+                    composed: true
+                }))
+            })
+        })
+    })
 </script>
