@@ -1,5 +1,6 @@
 ---
 // src/pages/index.astro
+
 import '../styles/global.css'
 import Display from '../components/Display.astro'
 import ModeTabs from '../components/ModeTabs.astro'
@@ -69,7 +70,7 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
 
     <script>
         // --- CENTRAL STATE MANAGEMENT ---
-        let amountStr = '0'
+        let amountStr = '0'  // Stores cents as integer (500 = $5.00)
         let discountPercent = 0
         let tipPercent = 0
         let baseAmount = 0
@@ -106,7 +107,7 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
 
         // Core Logic
         function calculateTotal() {
-            const base = parseFloat(amountStr) || 0
+            const base = parseFloat(amountStr) / 100 || 0  // Convert cents to dollars
             const afterDiscount = base * (1 - discountPercent / 100)
             return afterDiscount * (1 + tipPercent / 100)
         }
@@ -119,14 +120,14 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
         }
 
         function getDynamicFontSize(amountStr: string): string {
-            const length = amountStr.replace('.', '').length
+            const length = amountStr.length
             const baseSize = 72
             const reduction = Math.max(0, (length - 4) * 8)
             return `${Math.max(32, baseSize - reduction)}px`
         }
 
         function getCalculationText(): string {
-            const base = parseFloat(amountStr) || 0
+            const base = parseFloat(amountStr) / 100 || 0  // Convert cents to dollars
             const afterDiscount = base * (1 - discountPercent / 100)
             let calc = formatCurrency(base, false)
 
@@ -158,27 +159,24 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
 
             const total = calculateTotal()
             chargeBtn!.textContent = total > 0 ? `Charge ${formatCurrency(total)}` : 'Charge'
-            chargeBtn!.disabled = total <= 0 || !hasBaseAmount
             ;(chargeBtn! as HTMLButtonElement).disabled = total <= 0 || !hasBaseAmount
         }
 
         function handleKeyInput(key: string) {
-            if (!['0','1','2','3','4','5','6','7','8','9','.'].includes(key)) return
+            if (!['0','1','2','3','4','5','6','7','8','9'].includes(key)) return
 
             switch(activeMode) {
                 case 'amount':
-                    if (key === '.' && amountStr.includes('.')) return
-                    if (amountStr === '0' && key !== '.') {
-                        amountStr = key
-                    } else {
-                        const decimalIndex = amountStr.indexOf('.')
-                        if (decimalIndex !== -1 && amountStr.length - decimalIndex > 3) return
-                        amountStr += key
-                    }
+                    // CORRECTED DECIMAL LOGIC:
+                    // 5 -> $0.05 (5 cents)
+                    // 5,0 -> $0.50 (50 cents)
+                    // 1,2,3 -> $1.23 (123 cents)
+                    const currentCents = parseInt(amountStr) || 0
+                    const newCents = currentCents * 10 + parseInt(key)
+                    amountStr = newCents.toString()
                     break
 
                 case 'discount':
-                    if (key === '.') return
                     const discountNum = parseInt(amountStr) || 0
                     const newDiscountStr = (discountNum === 0 ? '' : String(discountNum)) + key
                     const newDiscount = parseInt(newDiscountStr, 10)
@@ -188,7 +186,6 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
                     break
 
                 case 'tip':
-                    if (key === '.') return
                     const tipNum = parseInt(amountStr) || 0
                     const newTipStr = (tipNum === 0 ? '' : String(tipNum)) + key
                     const newTip = parseInt(newTipStr, 10)
@@ -219,7 +216,7 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
 
         function handleAdd() {
             if (activeMode === 'amount' && parseFloat(amountStr) > 0) {
-                baseAmount += parseFloat(amountStr)
+                baseAmount += parseFloat(amountStr) / 100  // Convert cents to dollars
                 amountStr = '0'
                 hasBaseAmount = true
             }

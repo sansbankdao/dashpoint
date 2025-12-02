@@ -42,11 +42,12 @@
         document.getElementById('Currency')!.textContent = 'USD'
 
         const amountEl = document.getElementById('Amount')!
-        amountEl.textContent = formatCurrency(parseFloat(state.amountStr))
+        const dollarsValue = parseFloat(state.amountStr) / 100  // Convert cents to dollars
+        amountEl.textContent = formatCurrency(dollarsValue)
         amountEl.style.fontSize = state.fontSize
 
         const totalEl = document.getElementById('Total')!
-        const showTotal = state.total !== parseFloat(state.amountStr)
+        const showTotal = state.total !== dollarsValue
         totalEl.classList.toggle('hidden', !showTotal)
         if (showTotal) {
             totalEl.textContent = `Total: ${formatCurrency(state.total)}`
