@@ -1,23 +1,33 @@
 ---
+// src/layouts/Layout.astro
 import '../styles/global.css'
 
 interface Props {
     title: string;
+    description?: string;
 }
 
-const { title } = Astro.props
+const { title, description = 'DashPoint Storefront' } = Astro.props
+
+const canonical = new URL(Astro.url.pathname, Astro.site)
 ---
 
 <!doctype html>
 <html lang="en">
 <head>
 	<meta charset="UTF-8" />
-	<meta name="description" content="Astro description" />
+	<meta name="description" content={description} />
 	<meta name="viewport" content="width=device-width" />
-	<meta name="generator" content={Astro.generator} />
 
 	<title>{title}</title>
 
+	<meta property="og:title" content={title} />
+	<meta property="og:description" content={description} />
+	<meta property="og:type" content="website" />
+	<meta property="og:url" content={canonical} />
+	<meta name="twitter:card" content="summary" />
+
+	<link rel="canonical" href={canonical} />
 	<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 </head>
 

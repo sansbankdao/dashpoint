@@ -1,21 +1,18 @@
 ---
 // src/components/ProductCard.astro
-interface Props {
-    id: number;
-    title: string;
-    price: number;
-    imageUrl: string;
-}
+import type { Product } from '../types'
+
+interface Props extends Product {}
 
 const { id, title, price, imageUrl } = Astro.props;
 ---
 <button
-    class="product-card border bg-white rounded-lg p-3 text-center flex flex-col items-center justify-between hover:shadow-lg hover:border-green-500 transition-all duration-200 cursor-pointer focus:outline-none focus:ring-2 focus:ring-green-500"
+    class="product-card border bg-white rounded-lg p-3 text-center flex flex-col items-center justify-between hover:shadow-lg hover:border-blue-600 transition-all duration-200 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-600"
     data-id={id}
     data-price={price}
     data-title={title}
 >
-    <img src={imageUrl} alt={title} class="w-full h-24 object-contain mb-2" />
+    <img src={imageUrl} alt={title} width="150" height="150" class="w-full h-24 object-contain mb-2" />
     <div>
         <p class="font-semibold text-gray-800">{title}</p>
         <p class="text-gray-600">${price.toFixed(2)}</p>

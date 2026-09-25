@@ -1,13 +1,7 @@
 ---
 // src/components/Storefront.astro
 import ProductCard from './ProductCard.astro'
-
-interface Product {
-    id: number;
-    title: string;
-    price: number;
-    imageUrl: string;
-}
+import type { Product } from '../types'
 
 interface Props {
     products: Product[]
@@ -20,7 +14,7 @@ const { products } = Astro.props
     <div class="w-full max-w-md bg-gray-50 rounded-2xl shadow-xl overflow-hidden relative">
         <!-- Header -->
         <header class="text-center py-6 px-4 bg-white border-b">
-            <img src="https://placehold.co/100x100/A7D397/424769/png?text=K" alt="Kombucha Logo" class="w-24 h-24 rounded-full mx-auto mb-4 border-2 border-gray-200">
+            <img src="https://placehold.co/100x100/A7D397/424769/png?text=K" alt="Kombucha Logo" width="100" height="100" class="w-24 h-24 rounded-full mx-auto mb-4 border-2 border-gray-200">
             <h1 class="text-4xl font-bold text-gray-800">Kombucha</h1>
         </header>
 
@@ -39,10 +33,10 @@ const { products } = Astro.props
         <!-- Footer / Cart Summary -->
         <footer class="sticky bottom-0 bg-white border-t p-4 flex items-center justify-between">
             <div class="flex items-baseline gap-4">
-                <span id="total-amount" class="text-3xl font-bold text-gray-900">$0.00</span>
+                <span id="total-amount" aria-live="polite" class="text-3xl font-bold text-gray-900">$0.00</span>
                 <span class="border rounded-md px-3 py-1 text-sm font-medium text-gray-600 bg-gray-100">USD</span>
             </div>
-            <button id="pay-button" class="bg-green-500 text-white font-bold py-3 px-8 rounded-lg hover:bg-green-600 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed">
+            <button id="pay-button" class="bg-blue-600 text-white font-bold py-3 px-8 rounded-lg hover:bg-blue-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed">
                 Pay
             </button>
         </footer>
@@ -53,42 +47,54 @@ const { products } = Astro.props
 interface ICartItem {
     id: number;
     title: string;
+    // Price is stored in integer cents to avoid floating-point rounding errors.
     price: number;
     amount: number;
 }
 // Simple in-memory cart
-let cartTotal = 0.00;
+let cartTotalCents = 0;
 const cartItems: ICartItem[] = []
 
 // DOM Elements
 const productCards = document.querySelectorAll('.product-card')
 const totalAmountEl = document.getElementById('total-amount')
-const payButton = document.getElementById('pay-button') as HTMLButtonElement
+const payButton = document.getElementById('pay-button') as HTMLButtonElement | null
 
 function updateTotalDisplay() {
-    totalAmountEl!.textContent = `$${cartTotal.toFixed(2)}`
-    payButton!.disabled = cartTotal === 0
+    if (totalAmountEl === null) return
+    if (payButton === null) return
+
+    totalAmountEl.textContent = `$${(cartTotalCents / 100).toFixed(2)}`
+    payButton.disabled = cartTotalCents === 0
 }
 
-function handleProductClick(event: MouseEvent) {
-    const card = event.currentTarget as HTMLButtonElement
+function handleProductClick(event: Event) {
+    const card = event.currentTarget
 
-    if (card === null) return
-    if (card.dataset === null) return
+    if (!(card instanceof HTMLElement)) return
 
     const price = parseFloat(card.dataset.price!)
     const title = card.dataset.title!
     const id = parseInt(card.dataset.id!, 10)
 
+    // Guard against malformed data attributes rather than trusting the DOM.
+    if (!Number.isFinite(price)) return
+    if (!Number.isFinite(id)) return
+
+    const priceCents = Math.round(price * 100)
+
     // Add to cart logic
-    cartTotal += price;
-    cartItems.push({ id, title, price } as ICartItem);
+    cartTotalCents += priceCents;
+    const existingItem = cartItems.find(item => item.id === id);
+
+    if (existingItem) {
+        existingItem.amount += 1;
+    } else {
+        cartItems.push({ id, title, price: priceCents, amount: 1 });
+    }
 
     // Update UI
     updateTotalDisplay();
-
-    console.log('Cart:', cartItems);
-    console.log('Total:', cartTotal.toFixed(2));
 }
 
 // Attach event listeners
@@ -97,12 +103,14 @@ productCards.forEach(card => {
 });
 
 // Pay button functionality (for demonstration)
-payButton.addEventListener('click', () => {
-    if (cartTotal > 0) {
-        alert(`Proceeding to pay $${cartTotal.toFixed(2)}\nItems: ${JSON.stringify(cartItems, null, 2)}`);
-        // In a real app, this would redirect to a payment page (like BTCPay Server's invoice page)
-    }
-});
+if (payButton !== null) {
+    payButton.addEventListener('click', () => {
+        if (cartTotalCents > 0) {
+            alert(`Proceeding to pay $${(cartTotalCents / 100).toFixed(2)}\nItems: ${JSON.stringify(cartItems, null, 2)}`);
+            // In a real app, this would redirect to a payment page (like BTCPay Server's invoice page)
+        }
+    });
+}
 
 // Initial state
 updateTotalDisplay();
