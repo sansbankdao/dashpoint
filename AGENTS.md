@@ -50,6 +50,25 @@ src/styles/global.css     contains only: @import "tailwindcss";
   `tip:preset`. Events always use `bubbles: true, composed: true`.
 - `Display.astro` divides `amountStr` by 100 to show dollars. Keep this contract:
   `amountStr` is **cents as an integer string** everywhere.
+- **The payment method is chosen with buttons, not a `<select>`.**
+  `#checkout-popular` shows a fixed set (`POPULAR_ASSET_IDS`) as branded buttons
+  and `#checkout-asset-search` filters the rest on label, ticker or chain id
+  into `#checkout-asset-results`. The chosen id lives in the `checkoutAssetId`
+  script variable; no DOM element holds it, so read that variable rather than
+  an element value. Each asset gets an inline SVG mark from `assetIcon()`,
+  keyed by `BRAND_COLORS` with a monogram fallback for unknown chains.
+- **The QR code is rendered locally** with the `qrcode` dependency onto
+  `#checkout-qr`, above `#checkout-deposit`. The payload is a payment URI for
+  chains with a scheme and the bare address otherwise. The scheme map is keyed
+  on 1Click's short chain codes (`btc`, `eth`, `sol`, `base`, `arb`, `op`),
+  **not** full names — EVM chains all use `ethereum`. No third-party image
+  service is ever contacted.
+- `#checkout-amount-symbol` carries the origin ticker beside the amount, which
+  comes from `originSymbol` on the quote response. `renderQuote()` labels the
+  figure so the coin and the chain-specific address below cannot be confused.
+- `"Quote signature verified"` is **not** rendered. Verification still runs
+  server-side on every quote and a failure is returned as an error; the boolean
+  is only an internal signal and a customer cannot act on it.
 - The Pay Now button is disabled until `total > 0`, and also while `total` is
   below the measured minimum (`lowestMinimumUsd`). Below the minimum the button
   reads `Below minimum $X.XX`, and the click handler repeats the check so the

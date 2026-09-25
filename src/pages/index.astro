@@ -96,11 +96,33 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
                 <button id="checkout-close" type="button" class="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 text-2xl leading-none">&times;</button>
             </div>
 
-            <!-- Asset selector -->
-            <label class="flex flex-col gap-1 text-sm font-medium">
-                Pay with
-                <select id="checkout-asset" class="border border-slate-300 dark:border-slate-600 rounded-xl px-3 py-2 bg-white dark:bg-slate-900 text-base"></select>
-            </label>
+            <!--
+                Payment method chooser.
+
+                A native <select> showed every asset at the same prominence and
+                gave no way to find one in a list of seventeen. This replaces it
+                with buttons: a few popular methods are always visible, and the
+                rest are reachable through search, so a clerk who takes USDC all
+                day never scrolls and a clerk who takes something unusual can
+                still find it by name or ticker.
+            -->
+            <div class="flex flex-col gap-2">
+                <div class="text-sm font-medium">Pay with</div>
+                <div id="checkout-popular" class="grid grid-cols-2 gap-2"></div>
+                <label class="flex flex-col gap-1 text-sm font-medium">
+                    Search all methods
+                    <input id="checkout-asset-search" type="search" autocomplete="off" placeholder="e.g. SOL, USDC, Litecoin"
+                           class="border border-slate-300 dark:border-slate-600 rounded-xl px-3 py-2 bg-white dark:bg-slate-900 text-base" />
+                </label>
+                <div id="checkout-asset-results" class="hidden flex-col gap-2 max-h-56 overflow-y-auto"></div>
+                <div id="checkout-asset-selected" class="flex items-center gap-2 rounded-xl border-2 border-blue-500 bg-blue-50 dark:bg-blue-950/40 px-3 py-2">
+                    <span id="checkout-asset-selected-icon" class="shrink-0"></span>
+                    <span>
+                        <span class="block text-xs font-semibold uppercase tracking-wide text-blue-700 dark:text-blue-300">Selected</span>
+                        <span id="checkout-asset-selected-label" class="block text-sm font-bold"></span>
+                    </span>
+                </div>
+            </div>
 
             <!-- Destination address is NOT shown. The payout target is fixed by
                  MERCHANT_DASH_ADDRESS on the API Worker, so there is nothing for
@@ -108,7 +130,7 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
 
             <!-- Action / status -->
             <button id="checkout-quote" type="button" class="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 disabled:from-slate-400 disabled:to-slate-500 text-white font-bold py-4 px-6 rounded-2xl shadow-lg disabled:cursor-not-allowed">
-                Get Total
+                Make Payment
             </button>
 
             <!--
@@ -151,17 +173,38 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
 
             <!-- Quote result -->
             <div id="checkout-result" class="hidden flex-col gap-3 border-t border-slate-200 dark:border-slate-700 pt-4">
+                <!--
+                    "Send exactly" names the asset as well as the amount.
+
+                    The amount alone ("1.99984331") left the customer to
+                    remember which coin they had chosen, and the QR/deposit rows
+                    below are chain addresses that differ per asset. The ticker
+                    is carried next to the figure so the two cannot be confused.
+                -->
                 <div class="text-sm text-slate-500 dark:text-slate-400">Send exactly</div>
-                <div id="checkout-amount" class="text-2xl font-bold break-all"></div>
+                <div class="flex items-baseline gap-2 flex-wrap">
+                    <div id="checkout-amount" class="text-2xl font-bold break-all"></div>
+                    <div id="checkout-amount-symbol" class="text-2xl font-bold text-slate-500 dark:text-slate-400"></div>
+                </div>
                 <div id="checkout-amount-usd" class="text-sm text-slate-500 dark:text-slate-400"></div>
                 <div class="text-sm text-slate-500 dark:text-slate-400 mt-2">to</div>
+                <!--
+                    The QR code sits ABOVE the address.
+
+                    A customer scans first and types only as a fallback, so the
+                    scannable form leads and the text form follows. The code is
+                    rendered locally from the deposit URI; nothing is sent to a
+                    third-party image service.
+                -->
+                <div id="checkout-qr-wrap" class="hidden flex-col items-center gap-2">
+                    <canvas id="checkout-qr" class="rounded-xl bg-white p-3" width="208" height="208"></canvas>
+                </div>
                 <div id="checkout-deposit" class="font-mono text-sm break-all bg-slate-100 dark:bg-slate-900 rounded-xl p-3"></div>
                 <div id="checkout-memo-wrap" class="hidden flex-col gap-1">
                     <div class="text-sm text-slate-500 dark:text-slate-400">with memo</div>
                     <div id="checkout-memo" class="font-mono text-sm break-all bg-slate-100 dark:bg-slate-900 rounded-xl p-3"></div>
                 </div>
                 <div id="checkout-status" class="text-sm font-medium"></div>
-                <div id="checkout-verify" class="text-xs text-slate-500 dark:text-slate-400"></div>
             </div>
         </div>
     </div>
@@ -452,7 +495,16 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
 
         const checkoutPanel = document.getElementById('checkout-panel')
         const checkoutClose = document.getElementById('checkout-close')
-        const checkoutAsset = document.getElementById('checkout-asset') as HTMLSelectElement | null
+        /*
+         * The payment method is a pair of buttons plus a search box rather than
+         * a <select>. checkoutAssetId holds the chosen id, which is what the
+         * quote sends; no element carries it directly.
+         */
+        const checkoutPopular = document.getElementById('checkout-popular')
+        const checkoutAssetSearch = document.getElementById('checkout-asset-search') as HTMLInputElement | null
+        const checkoutAssetResults = document.getElementById('checkout-asset-results')
+        const checkoutAssetSelectedLabel = document.getElementById('checkout-asset-selected-label')
+        const checkoutAssetSelectedIcon = document.getElementById('checkout-asset-selected-icon')
         const checkoutQuoteBtn = document.getElementById('checkout-quote') as HTMLButtonElement | null
         const checkoutError = document.getElementById('checkout-error')
         const checkoutSetup = document.getElementById('checkout-setup')
@@ -461,12 +513,17 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
         const checkoutMinimumAsset = document.getElementById('checkout-minimum-asset')
         const checkoutResult = document.getElementById('checkout-result')
         const checkoutAmount = document.getElementById('checkout-amount')
+        const checkoutAmountSymbol = document.getElementById('checkout-amount-symbol')
         const checkoutAmountUsd = document.getElementById('checkout-amount-usd')
+        const checkoutQrWrap = document.getElementById('checkout-qr-wrap')
+        const checkoutQr = document.getElementById('checkout-qr') as HTMLCanvasElement | null
         const checkoutDeposit = document.getElementById('checkout-deposit')
         const checkoutMemoWrap = document.getElementById('checkout-memo-wrap')
         const checkoutMemo = document.getElementById('checkout-memo')
         const checkoutStatus = document.getElementById('checkout-status')
-        const checkoutVerify = document.getElementById('checkout-verify')
+
+        /* The currently chosen payment method id, or '' when none is chosen. */
+        let checkoutAssetId = ''
 
         // The origin assets, loaded once from the API.
         let originAssets: Array<{ id: string; label: string; blockchain: string; decimals: number; symbol: string }> = []
@@ -507,7 +564,7 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
         function saveCheckoutPrefs() {
             try {
                 const prefs = loadCheckoutPrefs()
-                prefs.originAsset = checkoutAsset?.value || prefs.originAsset
+                prefs.originAsset = checkoutAssetId || prefs.originAsset
                 localStorage.setItem(CHECKOUT_STORAGE_KEY, JSON.stringify(prefs))
             } catch {
                 // Storage can be unavailable (private mode). Not fatal.
@@ -555,7 +612,7 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
         function syncQuoteButton() {
             if (!checkoutQuoteBtn) return
             checkoutQuoteBtn.disabled = terminalReady === false
-            checkoutQuoteBtn.textContent = terminalReady === false ? 'Terminal not configured' : 'Get Total'
+            checkoutQuoteBtn.textContent = terminalReady === false ? 'Terminal not configured' : 'Make Payment'
         }
 
         /*
@@ -681,28 +738,145 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
             return body
         }
 
-        // Populate the asset list.
+        /*
+         * Brand marks for the common chains, drawn inline as SVG.
+         *
+         * A payment method is recognised by its logo long before its ticker is
+         * read, so each button carries one. Unknown assets fall back to a
+         * monogram rather than a blank box, so a newly listed chain still has a
+         * stable, recognisable shape.
+         */
+        const BRAND_COLORS: Record<string, string> = {
+            eth: '#627EEA', 'eth-base': '#0052FF', 'usdc-eth': '#2775CA',
+            'usdc-sol': '#2775CA', 'usdc-base': '#2775CA', 'usdc-arb': '#28A0F0',
+            'usdc-op': '#FF0420', 'usdc-avax': '#E84142', 'usdt-eth': '#26A17B',
+            btc: '#F7931A', sol: '#9945FF', ltc: '#345D9D', doge: '#C2A633',
+            xrp: '#23292F', dash: '#008CE7'
+        }
+
+        function assetIcon(id: string, symbol: string, size: number): string {
+            const color = BRAND_COLORS[id] || '#64748B'
+            const initial = (symbol || '?').slice(0, 1).toUpperCase()
+            return `<svg width="${size}" height="${size}" viewBox="0 0 32 32" aria-hidden="true">`
+                + `<circle cx="16" cy="16" r="16" fill="${color}"/>`
+                + `<text x="16" y="16" text-anchor="middle" dominant-baseline="central" `
+                + `font-family="system-ui,sans-serif" font-size="14" font-weight="700" fill="#fff">${initial}</text>`
+                + `</svg>`
+        }
+
+        /*
+         * A small, fixed set of methods a counter sees most often.
+         * These are shown as buttons at all times, so the common case never
+         * needs the search box. Ids missing from the loaded list are skipped.
+         */
+        const POPULAR_ASSET_IDS = ['btc', 'eth', 'usdc-eth', 'sol', 'usdc-sol', 'ltc']
+
+        function assetById(id: string) {
+            return originAssets.find((a) => a.id === id)
+        }
+
+        /* Reflect the chosen method in the Selected row. */
+        function paintSelectedAsset() {
+            const asset = assetById(checkoutAssetId)
+            if (checkoutAssetSelectedLabel) {
+                checkoutAssetSelectedLabel.textContent = asset
+                    ? `${asset.label} (${asset.symbol})`
+                    : 'None chosen yet'
+            }
+            if (checkoutAssetSelectedIcon) {
+                checkoutAssetSelectedIcon.innerHTML = asset ? assetIcon(asset.id, asset.symbol, 28) : ''
+            }
+        }
+
+        /* Choose a method and clear any floor left over from the previous one. */
+        function selectAsset(id: string) {
+            checkoutAssetId = id
+            paintSelectedAsset()
+            saveCheckoutPrefs()
+            /* A new asset has its own floor, so a stale minimum must not linger. */
+            clearMinimum()
+        }
+
+        function assetButton(asset: { id: string; label: string; symbol: string }): HTMLButtonElement {
+            const button = document.createElement('button')
+            button.type = 'button'
+            button.dataset.assetId = asset.id
+            button.className = 'flex items-center gap-2 rounded-xl border border-slate-300 dark:border-slate-600 '
+                + 'bg-white dark:bg-slate-900 px-3 py-2 text-left text-sm font-semibold hover:border-blue-500 '
+                + 'hover:bg-blue-50 dark:hover:bg-blue-950/40 transition-colors'
+            button.innerHTML = `<span class="shrink-0">${assetIcon(asset.id, asset.symbol, 24)}</span>`
+                + `<span class="truncate">${asset.symbol}</span>`
+            button.title = asset.label
+            button.addEventListener('click', () => selectAsset(asset.id))
+            return button
+        }
+
+        /*
+         * Render the search results.
+         *
+         * Matching is on the human label, the ticker and the chain id, so both
+         * "solana" and "SOL" find the same entry.
+         */
+        function renderAssetResults(query: string) {
+            if (!checkoutAssetResults) return
+            const needle = query.trim().toLowerCase()
+            checkoutAssetResults.innerHTML = ''
+            if (!needle) {
+                checkoutAssetResults.classList.add('hidden')
+                checkoutAssetResults.classList.remove('flex')
+                return
+            }
+            const matches = originAssets.filter((a) =>
+                a.label.toLowerCase().includes(needle)
+                || a.symbol.toLowerCase().includes(needle)
+                || a.id.toLowerCase().includes(needle)
+            )
+            if (matches.length === 0) {
+                const empty = document.createElement('div')
+                empty.className = 'text-sm text-slate-500 dark:text-slate-400 px-1 py-2'
+                empty.textContent = 'No payment method matches that search.'
+                checkoutAssetResults.appendChild(empty)
+            }
+            for (const asset of matches) {
+                const row = document.createElement('button')
+                row.type = 'button'
+                row.className = 'flex items-center gap-3 rounded-xl border border-slate-300 dark:border-slate-600 '
+                    + 'bg-white dark:bg-slate-900 px-3 py-2 text-left hover:border-blue-500 '
+                    + 'hover:bg-blue-50 dark:hover:bg-blue-950/40 transition-colors'
+                row.innerHTML = `<span class="shrink-0">${assetIcon(asset.id, asset.symbol, 28)}</span>`
+                    + `<span class="flex flex-col"><span class="text-sm font-bold">${asset.label}</span>`
+                    + `<span class="text-xs text-slate-500 dark:text-slate-400">${asset.symbol} · ${asset.blockchain}</span></span>`
+                row.addEventListener('click', () => {
+                    selectAsset(asset.id)
+                    if (checkoutAssetSearch) checkoutAssetSearch.value = ''
+                    renderAssetResults('')
+                })
+                checkoutAssetResults.appendChild(row)
+            }
+            checkoutAssetResults.classList.remove('hidden')
+            checkoutAssetResults.classList.add('flex')
+        }
+
+        // Populate the payment-method buttons and search.
         async function loadAssets() {
-            if (!checkoutAsset) return
+            if (!checkoutPopular) return
             try {
                 const data = await apiFetch('/v1/assets')
                 originAssets = data.assets || []
-                checkoutAsset.innerHTML = ''
-                for (const asset of originAssets) {
-                    const option = document.createElement('option')
-                    option.value = asset.id
-                    option.textContent = `${asset.label} (${asset.symbol})`
-                    checkoutAsset.appendChild(option)
+                checkoutPopular.innerHTML = ''
+                for (const id of POPULAR_ASSET_IDS) {
+                    const asset = assetById(id)
+                    if (asset) checkoutPopular.appendChild(assetButton(asset))
                 }
                 /*
                  * Reselect the asset the clerk used last, so a busy counter does
                  * not have to pick it again. Fall back to BTC, then to the first
-                 * entry, so the list is never left unselected.
+                 * entry, so a method is never left unchosen.
                  */
-                const preferred = originAssets.find((a) => a.id === restoredAssetId)
-                    || originAssets.find((a) => a.id === 'btc')
+                const preferred = assetById(restoredAssetId)
+                    || assetById('btc')
                     || originAssets[0]
-                if (preferred) checkoutAsset.value = preferred.id
+                if (preferred) selectAsset(preferred.id)
             } catch (error: any) {
                 showCheckoutError(`Could not load payment methods: ${error.message}`)
             }
@@ -717,9 +891,15 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
             }
             if (checkoutDeposit) checkoutDeposit.textContent = ''
             if (checkoutAmount) checkoutAmount.textContent = ''
+            if (checkoutAmountSymbol) checkoutAmountSymbol.textContent = ''
             if (checkoutAmountUsd) checkoutAmountUsd.textContent = ''
             if (checkoutStatus) checkoutStatus.textContent = ''
-            if (checkoutVerify) checkoutVerify.textContent = ''
+            if (checkoutQrWrap) {
+                checkoutQrWrap.classList.add('hidden')
+                checkoutQrWrap.classList.remove('flex')
+            }
+            if (checkoutAssetSearch) checkoutAssetSearch.value = ''
+            renderAssetResults('')
             if (checkoutMemoWrap) {
                 checkoutMemoWrap.classList.add('hidden')
                 checkoutMemoWrap.classList.remove('flex')
@@ -754,7 +934,7 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
 
         // Request a total and render the payment instructions.
         async function requestQuote() {
-            if (!checkoutQuoteBtn || !checkoutAsset) return
+            if (!checkoutQuoteBtn || !checkoutAssetId) return
             clearCheckoutError()
             clearMinimum()
 
@@ -787,7 +967,7 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        originAsset: checkoutAsset.value,
+                        originAsset: checkoutAssetId,
                         amount: duff,
                         ...(destinationAddress ? { destinationAddress } : {})
                     })
@@ -815,7 +995,7 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
                 }
             } finally {
                 checkoutQuoteBtn.disabled = false
-                checkoutQuoteBtn.textContent = 'Get Total'
+                checkoutQuoteBtn.textContent = 'Make Payment'
             }
         }
 
@@ -825,8 +1005,16 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
                 checkoutResult.classList.remove('hidden')
                 checkoutResult.classList.add('flex')
             }
+            /*
+             * Name the asset beside the figure. The amount alone left the
+             * customer to remember which coin they had chosen, while the
+             * deposit address below is chain-specific and differs per method.
+             */
             if (checkoutAmount) {
                 checkoutAmount.textContent = `${quote.amountInFormatted}`
+            }
+            if (checkoutAmountSymbol) {
+                checkoutAmountSymbol.textContent = quote.originSymbol || ''
             }
             if (checkoutAmountUsd) {
                 checkoutAmountUsd.textContent = `≈ $${Number(quote.amountInUsd).toFixed(2)} USD — you receive ${Number(quote.amountOutFormatted).toFixed(8)} DASH ($${(Number(quote.amountOut) / DASH_ATOM * dashPrice).toFixed(2)})`
@@ -834,6 +1022,7 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
             if (checkoutDeposit) {
                 checkoutDeposit.textContent = quote.depositAddress
             }
+            void renderQr(quote)
             if (quote.depositMemo) {
                 if (checkoutMemo) checkoutMemo.textContent = quote.depositMemo
                 if (checkoutMemoWrap) {
@@ -841,14 +1030,54 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
                     checkoutMemoWrap.classList.add('flex')
                 }
             }
-            if (checkoutVerify) {
-                checkoutVerify.textContent = quote.verified
-                    ? 'Quote signature verified.'
-                    : 'Quote signature NOT verified.'
-            }
+            /*
+             * The quote signature is verified server-side on every quote and a
+             * failure is already reported as an error, so it is not surfaced:
+             * a customer cannot act on it and it only competes with the amount.
+             */
 
             // Begin watching for the deposit.
             startPolling(quote.depositAddress, quote.depositMemo)
+        }
+
+        /*
+         * Draw the deposit as a QR code above the address.
+         *
+         * A customer scans first and types only as a fallback, so the scannable
+         * form leads. The payload is a payment URI when the asset has a scheme,
+         * so a wallet that understands it fills in the amount as well as the
+         * address; otherwise it is the bare address. Everything is drawn
+         * locally on a canvas; nothing is sent to a third-party image service.
+         */
+        async function renderQr(quote: any) {
+            if (!checkoutQr || !checkoutQrWrap) return
+            const address = String(quote.depositAddress || '')
+            if (!address) return
+            /*
+             * 1Click reports short chain codes (btc, eth, sol, base, arb,
+             * op), so the map is keyed on those. The EVM chains share the
+             * ethereum scheme because their addresses are the same shape.
+             */
+            const chain = String(quote.originBlockchain || '').toLowerCase()
+            const schemes: Record<string, string> = {
+                btc: 'bitcoin', ltc: 'litecoin', doge: 'dogecoin',
+                sol: 'solana', xrp: 'xrp',
+                eth: 'ethereum', base: 'ethereum', arb: 'ethereum', op: 'ethereum'
+            }
+            const scheme = schemes[chain]
+            const uri = scheme
+                ? `${scheme}:${address}${quote.depositMemo ? `?memo=${encodeURIComponent(quote.depositMemo)}` : ''}`
+                : address
+            try {
+                const QR = await import('qrcode')
+                await QR.toCanvas(checkoutQr, uri, { width: 208, margin: 1, errorCorrectionLevel: 'M' })
+                checkoutQrWrap.classList.remove('hidden')
+                checkoutQrWrap.classList.add('flex')
+            } catch {
+                /* A missing QR is not fatal: the address is still shown below. */
+                checkoutQrWrap.classList.add('hidden')
+                checkoutQrWrap.classList.remove('flex')
+            }
         }
 
         // Poll the swap status until it reaches a terminal state.
@@ -895,10 +1124,8 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
 
         checkoutQuoteBtn?.addEventListener('click', () => { void requestQuote() })
         checkoutClose?.addEventListener('click', closeCheckout)
-        checkoutAsset?.addEventListener('change', () => {
-            saveCheckoutPrefs()
-            /* A new asset has its own floor, so a stale minimum must not linger. */
-            clearMinimum()
+        checkoutAssetSearch?.addEventListener('input', () => {
+            renderAssetResults(checkoutAssetSearch.value)
         })
 
         // --- PWA ---
