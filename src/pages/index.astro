@@ -29,6 +29,12 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>DashPoint POS</title>
     <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="DashPoint" />
+    <meta name="theme-color" content="#2563eb" />
+    <!-- Makes the terminal installable as a standalone app. start_url is /. -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
 </head>
 <body class="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 text-slate-900 dark:text-slate-100 flex flex-col">
     <div id="pos-app" class="flex flex-col h-full min-h-screen">
@@ -693,6 +699,23 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
             /* An address just entered can make the terminal ready. */
             void refreshTerminalReadiness()
         })
+
+        // --- PWA ---
+        //
+        // Registers the minimal service worker that makes the terminal
+        // installable and caches the hashed bundle. It is registered from this
+        // page rather than /admin because start_url is /, and an installed app
+        // is the point of sale itself.
+        //
+        // Registration is best-effort: an unsupported browser, or a page not
+        // served over a secure origin, simply does not get an installable app.
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js').catch(() => {
+                    /* Installability is a convenience; never surface this. */
+                })
+            })
+        }
     </script>
 </body>
 </html>

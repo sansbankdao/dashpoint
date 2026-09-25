@@ -14,15 +14,20 @@ const defaults = DEFAULT_CONFIG
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Admin — DashPoint POS</title>
+    <title>Terminal Admin — DashPoint POS</title>
     <meta name="robots" content="noindex, nofollow" />
+    <meta name="theme-color" content="#2563eb" />
+    <!-- The terminal is installable; start_url is /, not this page. -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
 </head>
 <body class="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 text-slate-900 dark:text-slate-100 flex flex-col">
     <div id="admin-app" class="flex flex-col h-full min-h-screen">
         <!-- Header -->
         <header class="bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm border-b border-slate-200 dark:border-slate-700 px-6 py-4 shadow-sm sticky top-0 z-50">
             <div class="max-w-2xl mx-auto flex items-center justify-between gap-4">
-                <h1 class="text-2xl font-bold">Store Admin</h1>
+                <h1 class="text-2xl font-bold">Terminal Admin</h1>
                 <a href="/" class="text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline whitespace-nowrap">
                     &larr; Back to POS
                 </a>
@@ -58,6 +63,42 @@ const defaults = DEFAULT_CONFIG
                             class="rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500" />
                         <p class="text-xs text-slate-500 dark:text-slate-400">Comma-separated whole numbers between 1 and 100.</p>
                     </div>
+                </section>
+
+                <!-- Install -->
+                <section class="bg-white/90 dark:bg-slate-800/90 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-6 flex flex-col gap-3">
+                    <h2 class="text-lg font-semibold">Install</h2>
+                    <p class="text-xs text-slate-500 dark:text-slate-400">
+                        Installing adds DashPoint to this device's home screen, where it opens full-screen and
+                        straight to the payment terminal.
+                    </p>
+
+                    <!-- Shown when the browser can prompt directly. -->
+                    <button id="install-btn" type="button"
+                        class="hidden self-start bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-bold py-3 px-6 rounded-xl shadow-lg transition-all duration-200">
+                        Install DashPoint to Home Screen
+                    </button>
+
+                    <!--
+                        Shown when the browser cannot prompt directly. iOS Safari
+                        has no install event, so the only route is the share
+                        sheet, and the user has to be told the steps.
+                    -->
+                    <div id="install-hint" class="hidden rounded-xl border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 p-4 text-xs text-slate-600 dark:text-slate-300 flex-col gap-2">
+                        <p class="font-semibold">To install on this device</p>
+                        <p id="install-hint-ios" class="hidden">
+                            Tap the Share button in Safari, then choose <strong>Add to Home Screen</strong>.
+                        </p>
+                        <p id="install-hint-generic" class="hidden">
+                            Open this page in a browser menu and choose <strong>Install app</strong> or
+                            <strong>Add to Home Screen</strong>.
+                        </p>
+                    </div>
+
+                    <!-- Shown once the app is already running installed. -->
+                    <p id="install-done" class="hidden text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                        DashPoint is installed on this device.
+                    </p>
                 </section>
 
                 <!-- Payouts -->
@@ -127,6 +168,11 @@ const defaults = DEFAULT_CONFIG
         const keyStatusEl = document.getElementById('key-status')!
         const saveBtn = document.getElementById('save-btn') as HTMLButtonElement
         const resetBtn = document.getElementById('reset-btn') as HTMLButtonElement
+        const installBtn = document.getElementById('install-btn') as HTMLButtonElement
+        const installHint = document.getElementById('install-hint')!
+        const installHintIos = document.getElementById('install-hint-ios')!
+        const installHintGeneric = document.getElementById('install-hint-generic')!
+        const installDone = document.getElementById('install-done')!
 
         // `apiKey` is intentionally absent: the partner JWT is a server-side
         // secret and this page never reads or writes it.
@@ -283,6 +329,97 @@ const defaults = DEFAULT_CONFIG
                 }, 250)
             })
         }
+
+        // --- INSTALL ---
+        //
+        // "Install DashPoint to Home Screen".
+        //
+        // Only Chromium browsers fire beforeinstallprompt, and only when the
+        // manifest, service worker, and secure-origin requirements are met, so
+        // the event is captured when it arrives and its prompt is deferred until
+        // the operator clicks. Every other browser, iOS Safari in particular,
+        // has no programmatic install at all: there the button is replaced by
+        // the steps for the share sheet, because a button that cannot do
+        // anything is worse than an instruction that can be followed.
+        type InstallPrompt = Event & { prompt(): Promise<void>; userChoice: Promise<{ outcome: string }> }
+        let deferredInstallPrompt: InstallPrompt | null = null
+
+        /* Show the hint, choosing the wording for this browser. */
+        function showInstallHint() {
+            const ua = navigator.userAgent
+            const isIos = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+            const isSafari = isIos && !/CriOS|FxiOS|EdgiOS/.test(ua)
+
+            installHint.classList.remove('hidden')
+            installHint.classList.add('flex')
+            /* iOS Safari has no install event, so it always gets the steps. */
+            installHintIos.classList.toggle('hidden', !isSafari)
+            installHintGeneric.classList.toggle('hidden', isSafari)
+        }
+
+        /*
+         * True when this page is already running as an installed app.
+         *
+         * display-mode standalone is the modern signal; navigator.standalone is
+         * the iOS-specific one, and iOS does not report display-mode reliably.
+         */
+        function isInstalled() {
+            return window.matchMedia('(display-mode: standalone)').matches
+                || (navigator as unknown as { standalone?: boolean }).standalone === true
+        }
+
+        function refreshInstallUi() {
+            if (isInstalled()) {
+                installBtn.classList.add('hidden')
+                installHint.classList.add('hidden')
+                installHint.classList.remove('flex')
+                installDone.classList.remove('hidden')
+                return
+            }
+            installDone.classList.add('hidden')
+            if (deferredInstallPrompt) {
+                /* A real prompt is available, so offer the real button. */
+                installBtn.classList.remove('hidden')
+                installHint.classList.add('hidden')
+                installHint.classList.remove('flex')
+            } else {
+                installBtn.classList.add('hidden')
+                showInstallHint()
+            }
+        }
+
+        window.addEventListener('beforeinstallprompt', (event) => {
+            /* Suppress the browser's own mini-infobar so the page controls it. */
+            event.preventDefault()
+            deferredInstallPrompt = event as InstallPrompt
+            refreshInstallUi()
+        })
+
+        window.addEventListener('appinstalled', () => {
+            deferredInstallPrompt = null
+            refreshInstallUi()
+            setStatus('DashPoint was installed to the home screen.', 'ok')
+        })
+
+        installBtn.addEventListener('click', async () => {
+            if (!deferredInstallPrompt) return
+            const prompt = deferredInstallPrompt
+            /*
+             * An install prompt is single-use, so it is cleared before awaiting
+             * the choice: a second click must not replay a spent event.
+             */
+            deferredInstallPrompt = null
+            await prompt.prompt()
+            const choice = await prompt.userChoice
+            if (choice.outcome !== 'accepted') {
+                /* Declined installs can still be offered again on a later visit. */
+                refreshInstallUi()
+            }
+        })
+
+        // The POS page registers the service worker; this page only needs the
+        // manifest to be reachable, which the link tag above provides.
+        refreshInstallUi()
 
         // Hydrate from localStorage on load.
         fillForm(loadConfig())

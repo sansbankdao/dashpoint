@@ -6,14 +6,15 @@ Guidance for AI coding agents working in this repository.
 ## Repository facts
 
 - **Purpose:** Browser-based USD point-of-sale keypad UI. A clerk enters a dollar
-  amount, optionally applies a discount and a tip, and presses **Charge**.
+  amount, optionally applies a discount and a tip, and presses **Pay Now**.
 - **Stack:** Astro `5.14.1` (static site, `output` default) + Tailwind CSS
   `4.1.14` wired through `@tailwindcss/vite`. TypeScript via
   `astro/tsconfigs/strict`. Package manager: pnpm (see `pnpm-lock.yaml`).
-- **No backend exists in this repo.** There is no invoicing, quoting, payments,
-  webhooks, or database code. `POST /v1/invoices` and the rest of the DashPoint
-  API described in the engineering handoff are not implemented here.
-- **Crypto is Dash-only in the current UI.** There is no cross-chain swap code.
+- **No backend exists in this repo.** The payment API is the separate
+  `dashpoint-api` Worker (see "Deployed API" below), reached same-origin at
+  `/v1`. `POST /v1/invoices` from the legacy engineering handoff does not exist.
+- **Crypto is any-asset in, DASH out.** The POS accepts the origin assets listed
+  by `GET /v1/assets` and settles DASH to the merchant address.
 
 ### Source layout
 
@@ -22,6 +23,12 @@ astro.config.mjs          Astro config; registers the Tailwind Vite plugin
 package.json              name "dashpoint-sale", version 25.10.3, MIT
 tsconfig.json             extends astro/tsconfigs/strict
 public/favicon.svg        site icon
+public/manifest.webmanifest  PWA manifest (start_url "/", display standalone)
+public/sw.js              minimal service worker: installability + asset cache
+public/icon-192.png        PWA icon (192x192)
+public/icon-512.png        PWA icon (512x512)
+public/icon-maskable-512.png  PWA maskable icon (512x512)
+public/apple-touch-icon.png   iOS home-screen icon (180x180)
 src/pages/index.astro     page shell + ALL client state (amount/discount/tip)
 src/components/
   Display.astro           renders USD amount, total, calculation text
@@ -43,8 +50,13 @@ src/styles/global.css     contains only: @import "tailwindcss";
   `tip:preset`. Events always use `bubbles: true, composed: true`.
 - `Display.astro` divides `amountStr` by 100 to show dollars. Keep this contract:
   `amountStr` is **cents as an integer string** everywhere.
-- The Charge button is disabled until `total > 0 && hasBaseAmount`.
-- `calculateTotal()` = `base * (1 - discount/100) * (1 + tip/100)`.
+- The Pay Now button is disabled until `total > 0`.
+- `calculateTotal()` = `(baseAmount + amountStr/100) * (1 - discount/100) * (1 + tip/100)`.
+  `baseAmount` holds the running subtotal accumulated with the `+` key, and
+  `amountStr` is the amount currently on the display. Both must be summed: a
+  version that read only `amountStr` made `+` a one-way trip that zeroed the
+  total and disabled Pay Now permanently. `Display.astro` renders the same sum,
+  so keep the two in step.
 
 ## Commands
 
@@ -76,6 +88,26 @@ pnpm astro check      # astro/TypeScript diagnostics
 - `src/pages/index.astro` holds the single source of truth for POS state. When
   extending behavior (for example a payment/charge flow), route new state
   through `updateDOM()` rather than adding parallel state holders.
+
+## PWA / installability
+
+The terminal is installable as a standalone app.
+
+- `start_url` is **`/`**, the payment terminal, not `/admin`. An installed app is
+  the point of sale.
+- `public/sw.js` is a **minimal** service worker. It exists to satisfy the
+  browser's install criteria, to cache the content-hashed `/_astro` assets, and
+  for nothing else. It is deliberately **not** an offline cache.
+- **Never cache `/v1`.** A cached quote, price, or swap status would show the
+  clerk a stale amount or an already-settled sale. The worker returns before
+  handling any `/v1` request so the network answers and can fail visibly.
+- Navigations are network-first, so a deploy cannot leave a client running HTML
+  that points at deleted bundles. Only `/_astro` and static file extensions are
+  cache-first.
+- `beforeinstallprompt` is **Chromium-only**. iOS Safari has no programmatic
+  install, so `/admin` shows share-sheet steps instead of a button that cannot
+  act. Do not claim a button can install on iOS.
+- Registration happens on `/`, not `/admin`, because `start_url` is `/`.
 
 ## Integration context: NEAR Intents (for planned any-crypto payments)
 
