@@ -42,7 +42,14 @@
         document.getElementById('Currency')!.textContent = 'USD'
 
         const amountEl = document.getElementById('Amount')!
-        const dollarsValue = parseFloat(state.amountStr) / 100  // Convert cents to dollars
+        /*
+         * The display shows the running base plus the typed amount, matching
+         * calculateTotal() on the page. baseAmount carries whatever was
+         * accumulated with the + key, and it must be added here as well or the
+         * headline would drop back to $0.00 after a + press.
+         */
+        const displayed = parseFloat(state.amountStr) / 100  // Convert cents to dollars
+        const dollarsValue = (state.baseAmount || 0) + displayed
         amountEl.textContent = formatCurrency(dollarsValue)
         amountEl.style.fontSize = state.fontSize
 

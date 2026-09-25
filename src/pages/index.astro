@@ -51,19 +51,19 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
             <Keypad client:load />
         </main>
 
-        <!-- Charge Button -->
+        <!-- Pay Button -->
         <div class="px-6 pb-8">
             <button id="charge-btn"
                 class="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 disabled:from-slate-400 disabled:to-slate-500 text-white font-bold py-5 px-6 rounded-2xl text-xl shadow-2xl hover:shadow-3xl active:translate-y-0.5 transition-all duration-200 disabled:cursor-not-allowed disabled:shadow-lg flex items-center justify-center h-16 disabled:transform-none text-lg"
                 disabled>
-                Charge
+                Pay Now
             </button>
         </div>
 
         <!-- Footer -->
         <footer class="bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm border-t border-slate-200 dark:border-slate-700 px-6 py-4 mt-auto">
             <div class="text-center text-sm text-slate-500 dark:text-slate-400">
-                Powered by <strong class="text-slate-900 dark:text-slate-100">DashPoint POS</strong>
+                DashPoint POS
             </div>
         </footer>
     </div>
@@ -100,6 +100,29 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
             </button>
 
             <p id="checkout-error" class="hidden text-sm text-red-600 dark:text-red-400"></p>
+
+            <!--
+                Setup prompt.
+
+                Shown instead of the payment instructions when the terminal has
+                no DASH payout address: neither the /admin setting nor the API's
+                MERCHANT_DASH_ADDRESS is present. Without one there is nowhere to
+                deliver the funds, so the sale must not be able to start. The
+                customer never sees a quote in this state.
+            -->
+            <div id="checkout-setup" class="hidden flex-col gap-3 rounded-xl border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/40 p-4">
+                <h3 class="text-sm font-semibold text-amber-900 dark:text-amber-200">This terminal is not ready to take payments</h3>
+                <p class="text-xs text-amber-900 dark:text-amber-200">
+                    No DASH payout address is configured, so there is nowhere to send the
+                    money. Enter the address in the field above, or set
+                    <code class="font-mono">MERCHANT_DASH_ADDRESS</code> on the API Worker as an
+                    operator. The address can be set at any time; a sale that is already paid
+                    is unaffected.
+                </p>
+                <p class="text-xs text-amber-900 dark:text-amber-200">
+                    Questions? Contact the merchant who runs this terminal.
+                </p>
+            </div>
 
             <!-- Quote result -->
             <div id="checkout-result" class="hidden flex-col gap-3 border-t border-slate-200 dark:border-slate-700 pt-4">
@@ -157,7 +180,18 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
 
         // Core Logic
         function calculateTotal() {
-            const base = parseFloat(amountStr) / 100 || 0  // Convert cents to dollars
+            /*
+             * The total is the running base plus whatever is on the display.
+             *
+             * The + key moves the typed amount into baseAmount and clears the
+             * display, so baseAmount is the already-entered subtotal. Reading
+             * only amountStr here made + a one-way trip: it zeroed the display,
+             * the total became 0, and Pay stayed disabled for the rest of the
+             * sale. The display keeps its cent semantics, so baseAmount is the
+             * dollar value and amountStr is converted from cents.
+             */
+            const displayed = parseFloat(amountStr) / 100 || 0  // Convert cents to dollars
+            const base = baseAmount + displayed
             const afterDiscount = base * (1 - discountPercent / 100)
             return afterDiscount * (1 + tipPercent / 100)
         }
@@ -177,7 +211,8 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
         }
 
         function getCalculationText(): string {
-            const base = parseFloat(amountStr) / 100 || 0  // Convert cents to dollars
+            const displayed = parseFloat(amountStr) / 100 || 0  // Convert cents to dollars
+            const base = baseAmount + displayed
             const afterDiscount = base * (1 - discountPercent / 100)
             let calc = formatCurrency(base, false)
 
@@ -208,8 +243,14 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
             }))
 
             const total = calculateTotal()
-            chargeBtn!.textContent = total > 0 ? `Charge ${formatCurrency(total)}` : 'Charge'
-            ;(chargeBtn! as HTMLButtonElement).disabled = total <= 0 || !hasBaseAmount
+            /*
+             * The Pay button is enabled as soon as there is anything to charge,
+             * whether it was typed on the display or accumulated with +. The
+             * hasBaseAmount flag alone was not enough, because a sale can be
+             * entered entirely on the display without pressing + first.
+             */
+            chargeBtn!.textContent = total > 0 ? `Pay Now ${formatCurrency(total)}` : 'Pay Now'
+            ;(chargeBtn! as HTMLButtonElement).disabled = total <= 0
         }
 
         function handleKeyInput(key: string) {
@@ -275,7 +316,7 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
 
         chargeBtn?.addEventListener('click', () => {
             const total = calculateTotal()
-            if (total <= 0 || !hasBaseAmount) {
+            if (total <= 0) {
                 alert('Please enter a valid amount.')
                 return
             }
@@ -337,6 +378,7 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
         const checkoutDestination = document.getElementById('checkout-destination') as HTMLInputElement | null
         const checkoutQuoteBtn = document.getElementById('checkout-quote') as HTMLButtonElement | null
         const checkoutError = document.getElementById('checkout-error')
+        const checkoutSetup = document.getElementById('checkout-setup')
         const checkoutResult = document.getElementById('checkout-result')
         const checkoutAmount = document.getElementById('checkout-amount')
         const checkoutAmountUsd = document.getElementById('checkout-amount-usd')
@@ -353,7 +395,7 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
         let activeQuote: any = null
         let pollTimer: number | null = null
 
-        // The dollar total captured when Charge was pressed.
+        // The dollar total captured when Pay Now was pressed.
         let checkoutTotal = 0
 
         // Remember the merchant's payout address between checkouts on this
@@ -380,7 +422,46 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
             }
         }
 
-        // Turn a dollar total into an integer DASH amount in duff.
+        /*
+         * Whether the terminal can deliver funds at all.
+         *
+         * Null until GET /v1/health answers. The setup prompt is shown for an
+         * explicit false; an unreachable health check leaves it null and the
+         * normal error path reports the failure instead of blaming setup.
+         */
+        let terminalReady: boolean | null = null
+
+        function setSetupPromptVisible(visible: boolean) {
+            if (!checkoutSetup) return
+            checkoutSetup.classList.toggle('hidden', !visible)
+            checkoutSetup.classList.toggle('flex', visible)
+        }
+
+        /*
+         * Ask the API whether a payout address exists, then reflect that in the
+         * panel. The API is the authority: a device-local address is only a
+         * convenience, so the terminal is ready when either one is present.
+         */
+        async function refreshTerminalReadiness() {
+            const local = checkoutDestination?.value?.trim() || ''
+            try {
+                const health = await apiFetch('/v1/health')
+                terminalReady = Boolean(health?.terminalReady) || Boolean(local)
+            } catch {
+                /* A health failure is reported by the quote attempt itself. */
+                terminalReady = local ? true : null
+            }
+            setSetupPromptVisible(terminalReady === false)
+            syncQuoteButton()
+        }
+
+        /* The quote button mirrors the readiness prompt. */
+        function syncQuoteButton() {
+            if (!checkoutQuoteBtn) return
+            checkoutQuoteBtn.disabled = terminalReady === false
+            checkoutQuoteBtn.textContent = terminalReady === false ? 'Terminal not configured' : 'Get quote'
+        }
+
         function usdToDuff(usd: number, dashPrice: number): string {
             if (!dashPrice || dashPrice <= 0) return '0'
             const dash = usd / dashPrice
@@ -455,6 +536,7 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
                 checkoutMemoWrap.classList.add('hidden')
                 checkoutMemoWrap.classList.remove('flex')
             }
+            setSetupPromptVisible(false)
 
             // Restore the remembered payout address, if any. The /admin setting
             // wins, then the last address used on this device.
@@ -465,6 +547,11 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
 
             checkoutPanel?.classList.remove('hidden')
             void loadAssets()
+            /*
+             * Check readiness after the panel is visible so the prompt appears
+             * in place rather than after a flash of the payment form.
+             */
+            void refreshTerminalReadiness()
         }
 
         function closeCheckout() {
@@ -486,8 +573,8 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
 
             const destinationAddress = checkoutDestination?.value?.trim() || ''
 
-            if (!destinationAddress) {
-                showCheckoutError('Enter the DASH address that should receive the payment.')
+            if (!destinationAddress && terminalReady === false) {
+                showCheckoutError('This terminal has no DASH payout address configured.')
                 return
             }
 
@@ -601,7 +688,11 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
 
         checkoutQuoteBtn?.addEventListener('click', () => { void requestQuote() })
         checkoutClose?.addEventListener('click', closeCheckout)
-        checkoutDestination?.addEventListener('change', saveCheckoutPrefs)
+        checkoutDestination?.addEventListener('change', () => {
+            saveCheckoutPrefs()
+            /* An address just entered can make the terminal ready. */
+            void refreshTerminalReadiness()
+        })
     </script>
 </body>
 </html>
