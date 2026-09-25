@@ -125,10 +125,9 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
                 <h3 class="text-sm font-semibold text-amber-900 dark:text-amber-200">This terminal is not ready to take payments</h3>
                 <p class="text-xs text-amber-900 dark:text-amber-200">
                     No DASH payout address is configured, so there is nowhere to send the
-                    money. Enter the address in the field above, or set
-                    <code class="font-mono">MERCHANT_DASH_ADDRESS</code> on the API Worker as an
-                    operator. The address can be set at any time; a sale that is already paid
-                    is unaffected.
+                    money. The address is set by the operator in the Terminal Admin
+                    settings, and is never entered here. The address can be set at any
+                    time; a sale that is already paid is unaffected.
                 </p>
                 <p class="text-xs text-amber-900 dark:text-amber-200">
                     Questions? Contact the merchant who runs this terminal.
@@ -359,16 +358,30 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
         //   3. Poll the API for the swap status until it settles.
         //
         // The DASH payout address is read from the settings saved on /admin for
-        // this device, and can be overridden per sale in the field below. A
-        // receiving address is not a secret, so keeping it in localStorage is
-        // appropriate. The API's MERCHANT_DASH_ADDRESS is the fallback whenever
-        // this field is left empty, so a sale is still payable with no setting.
+        // this device. It is never shown, and never typed at the counter: it is
+        // passed to the API so the destination is the merchant's own address.
+        // The API's MERCHANT_DASH_ADDRESS is the fallback when this device has
+        // no setting, so a sale is still payable with nothing configured.
         //
         // Refunds are decided by the API, not by the browser, so no
         // customer-facing refund address is collected.
 
         const DASH_DECIMALS = 8
         const DASH_ATOM = Math.pow(10, DASH_DECIMALS)
+
+        // The key /admin writes. Read here so the two pages share one setting.
+        const CONFIG_STORAGE_KEY = 'dashpoint.config.v1'
+
+        // Read the payout address saved on /admin for this device. Held in a
+        // variable and sent with the quote; never written into the page.
+        function storedPayoutAddress(): string {
+            try {
+                const raw = JSON.parse(localStorage.getItem(CONFIG_STORAGE_KEY) || '{}')
+                return typeof raw.destinationAddress === 'string' ? raw.destinationAddress.trim() : ''
+            } catch {
+                return ''
+            }
+        }
 
         const checkoutPanel = document.getElementById('checkout-panel')
         const checkoutClose = document.getElementById('checkout-close')
@@ -450,17 +463,22 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
         }
 
         /*
-         * Ask the API whether a payout address exists, then reflect that in the
-         * panel. The API is the only authority now that no address is entered
-         * on this page.
+         * Whether the terminal can deliver funds.
+         *
+         * Two places can supply the payout address: the setting saved on /admin
+         * for this device, and MERCHANT_DASH_ADDRESS on the API. Either one
+         * makes the terminal payable, so the readiness check must accept both.
+         * Consulting only the server would report a terminal as unconfigured
+         * after it had been configured locally.
          */
         async function refreshTerminalReadiness() {
+            const local = storedPayoutAddress()
             try {
                 const health = await apiFetch('/v1/health')
-                terminalReady = Boolean(health?.terminalReady)
+                terminalReady = Boolean(health?.terminalReady) || Boolean(local)
             } catch {
                 /* A health failure is reported by the quote attempt itself. */
-                terminalReady = null
+                terminalReady = local ? true : null
             }
             setSetupPromptVisible(terminalReady === false)
             syncQuoteButton()
@@ -648,16 +666,19 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
                 checkoutQuoteBtn.textContent = 'Getting total...'
 
                 /*
-                 * No destinationAddress is sent. The payout target is fixed by
-                 * MERCHANT_DASH_ADDRESS on the Worker, so the browser cannot
-                 * choose or reveal where the money goes.
+                 * The destination comes from the settings saved on /admin for
+                 * this device. It is not shown and cannot be edited here. When
+                 * this device has no setting the field is omitted so the API
+                 * applies MERCHANT_DASH_ADDRESS instead of an empty string.
                  */
+                const destinationAddress = storedPayoutAddress()
                 const quote = await apiFetch('/v1/quote', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         originAsset: checkoutAsset.value,
-                        amount: duff
+                        amount: duff,
+                        ...(destinationAddress ? { destinationAddress } : {})
                     })
                 })
 
