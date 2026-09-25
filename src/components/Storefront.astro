@@ -30,6 +30,9 @@ const { products } = Astro.props
             ))}
         </main>
 
+        <!-- Cart line items -->
+        <section id="cart-items" class="px-4 pb-4 space-y-2"></section>
+
         <!-- Footer / Cart Summary -->
         <footer class="sticky bottom-0 bg-white border-t p-4 flex items-center justify-between">
             <div class="flex items-baseline gap-4">
@@ -44,28 +47,48 @@ const { products } = Astro.props
 </div>
 
 <script>
-interface ICartItem {
-    id: number;
-    title: string;
-    // Price is stored in integer cents to avoid floating-point rounding errors.
-    price: number;
-    amount: number;
-}
+import { addItem, removeItem, totalCents, formatCents, type CartItem } from '../lib/cart'
+
 // Simple in-memory cart
-let cartTotalCents = 0;
-const cartItems: ICartItem[] = []
+const cartItems: CartItem[] = []
 
 // DOM Elements
 const productCards = document.querySelectorAll('.product-card')
 const totalAmountEl = document.getElementById('total-amount')
 const payButton = document.getElementById('pay-button') as HTMLButtonElement | null
+const cartItemsEl = document.getElementById('cart-items')
 
-function updateTotalDisplay() {
+function renderCart() {
+    if (cartItemsEl === null) return
     if (totalAmountEl === null) return
     if (payButton === null) return
 
-    totalAmountEl.textContent = `$${(cartTotalCents / 100).toFixed(2)}`
-    payButton.disabled = cartTotalCents === 0
+    cartItemsEl.innerHTML = ''
+
+    cartItems.forEach(item => {
+        const row = document.createElement('div')
+        row.className = 'flex items-center justify-between bg-white border rounded-lg px-3 py-2 text-sm'
+
+        const label = document.createElement('span')
+        label.className = 'text-gray-800'
+        label.textContent = `${item.title} × ${item.amount} — ${formatCents(item.price * item.amount)}`
+
+        const remove = document.createElement('button')
+        remove.className = 'text-red-600 font-bold px-2 rounded hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-500'
+        remove.setAttribute('aria-label', `Remove one ${item.title}`)
+        remove.textContent = '−'
+        remove.addEventListener('click', () => {
+            removeItem(cartItems, item.id)
+            renderCart()
+        })
+
+        row.appendChild(label)
+        row.appendChild(remove)
+        cartItemsEl.appendChild(row)
+    })
+
+    totalAmountEl.textContent = formatCents(totalCents(cartItems))
+    payButton.disabled = cartItems.length === 0
 }
 
 function handleProductClick(event: Event) {
@@ -84,17 +107,10 @@ function handleProductClick(event: Event) {
     const priceCents = Math.round(price * 100)
 
     // Add to cart logic
-    cartTotalCents += priceCents;
-    const existingItem = cartItems.find(item => item.id === id);
-
-    if (existingItem) {
-        existingItem.amount += 1;
-    } else {
-        cartItems.push({ id, title, price: priceCents, amount: 1 });
-    }
+    addItem(cartItems, { id, title, priceCents })
 
     // Update UI
-    updateTotalDisplay();
+    renderCart()
 }
 
 // Attach event listeners
@@ -105,13 +121,14 @@ productCards.forEach(card => {
 // Pay button functionality (for demonstration)
 if (payButton !== null) {
     payButton.addEventListener('click', () => {
-        if (cartTotalCents > 0) {
-            alert(`Proceeding to pay $${(cartTotalCents / 100).toFixed(2)}\nItems: ${JSON.stringify(cartItems, null, 2)}`);
+        const cents = totalCents(cartItems)
+        if (cents > 0) {
+            alert(`Proceeding to pay ${formatCents(cents)}\nItems: ${JSON.stringify(cartItems, null, 2)}`);
             // In a real app, this would redirect to a payment page (like BTCPay Server's invoice page)
         }
     });
 }
 
 // Initial state
-updateTotalDisplay();
+renderCart();
 </script>

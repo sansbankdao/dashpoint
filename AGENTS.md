@@ -25,11 +25,14 @@ public/favicon.svg        site icon
 src/pages/index.astro     page shell; imports products + <Storefront />
 src/layouts/Layout.astro  HTML shell, meta/OG/canonical, imports global.css
 src/components/
-  Storefront.astro        header, product grid, cart footer, ALL client cart state
+  Storefront.astro        header, product grid, cart list, footer; DOM wiring only
   ProductCard.astro       single product button (data-id/price/title attributes)
+src/lib/cart.ts           pure cart logic (addItem/removeItem/totalCents/formatCents)
+src/lib/cart.test.ts      node:test unit tests for the pure cart logic
 src/data/products.ts      the 6 products (single source of truth)
 src/types.ts              shared `Product` interface
 src/styles/global.css     contains only: @import "tailwindcss";
+public/_headers           Cloudflare Pages security headers + long-cache rules
 ```
 
 ## Shared API server — read this before adding any network call
@@ -52,6 +55,22 @@ each static Pages site.** The Worker source is the sibling repo
   never sent to the browser and never committed to any repository.** This
   storefront has no need for it; do not add it to any tracked file.
 
+## Deployment
+
+The site is served from **Cloudflare Pages** on zone `dashpoint.store`. Evidence:
+`../dashpoint-api/packages/api/wrangler.jsonc` routes `dashpoint.store/v1` and
+`dashpoint.store/v1/*` with `"zone_name": "dashpoint.store"`. The sibling
+`../dashqt.org/public/_headers` and `../sansbank.org/public/_headers` use the
+same Cloudflare Pages `_headers` mechanism this repo now mirrors.
+
+- Security headers live in `public/_headers` (copied verbatim to `dist/_headers`
+  by the build). Cloudflare Pages reads it; it is **not** an Astro file.
+- The CSP in `public/_headers` allows `img-src https://placehold.co` because the
+  product and logo images are still hosted there, and `script-src 'unsafe-inline'`
+  because Astro inlines the single cart module into `index.html` (there is no
+  emitted `_astro/*.js`). If you add an external script or move images, update
+  the CSP in the same change.
+
 ## Commands
 
 Run from the repo root:
@@ -62,6 +81,8 @@ pnpm dev              # astro dev, http://localhost:4321
 pnpm build            # astro build -> ./dist/
 pnpm preview          # preview the production build
 pnpm check            # astro check (types + content)
+pnpm test             # node --test src/lib/cart.test.ts
+pnpm audit            # dependency vulnerability scan
 ```
 
 ## Conventions
@@ -84,6 +105,8 @@ pnpm check            # astro check (types + content)
   large binary inflates the context window.
 - `src/styles/global.css` intentionally contains only the Tailwind import; do
   not add global rules without reason.
-- The cart has **no remove/quantity UI**; additions aggregate into `cartItems`
-  by `id` and increment `amount`. Removing an item is not implemented.
+- Cart state is held in `src/components/Storefront.astro`; the pure operations
+  live in `src/lib/cart.ts`. Put cart math in the module, not the component.
+- The cart's remove control is a `−` button per line item in `#cart-items`; it
+  decrements `amount` and removes the row at zero.
 - The `Pay` button is a demo: it fires `alert()` and does not call any API.
