@@ -65,13 +65,6 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
                 Pay Now
             </button>
         </div>
-
-        <!-- Footer -->
-        <footer class="bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm border-t border-slate-200 dark:border-slate-700 px-6 py-4 mt-auto">
-            <div class="text-center text-sm text-slate-500 dark:text-slate-400">
-                DashPoint POS
-            </div>
-        </footer>
     </div>
 
     <!-- Checkout Panel -->
@@ -94,16 +87,28 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
                 <select id="checkout-asset" class="border border-slate-300 dark:border-slate-600 rounded-xl px-3 py-2 bg-white dark:bg-slate-900 text-base"></select>
             </label>
 
-            <!-- Destination address -->
-            <label class="flex flex-col gap-1 text-sm font-medium">
-                DASH payout address
-                <input id="checkout-destination" type="text" autocomplete="off" class="border border-slate-300 dark:border-slate-600 rounded-xl px-3 py-2 bg-white dark:bg-slate-900 font-mono text-sm" />
-            </label>
+            <!-- Destination address is NOT shown. The payout target is fixed by
+                 MERCHANT_DASH_ADDRESS on the API Worker, so there is nothing for
+                 the customer or clerk to see or mistype here. -->
 
             <!-- Action / status -->
             <button id="checkout-quote" type="button" class="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 disabled:from-slate-400 disabled:to-slate-500 text-white font-bold py-4 px-6 rounded-2xl shadow-lg disabled:cursor-not-allowed">
-                Get quote
+                Get Total
             </button>
+
+            <!--
+                Prominent minimum.
+
+                1Click refuses a sale below a per-route floor. Its message quotes
+                the floor in DASH base units, which means nothing to a customer
+                standing at a counter, so the API converts it and it is shown
+                here at display size before anything is paid.
+            -->
+            <div id="checkout-minimum" class="hidden flex-col items-center gap-1 rounded-2xl border-2 border-amber-400 dark:border-amber-600 bg-amber-50 dark:bg-amber-950/40 px-4 py-5 text-center">
+                <div class="text-xs font-semibold uppercase tracking-wide text-amber-800 dark:text-amber-300">Minimum payment</div>
+                <div id="checkout-minimum-usd" class="text-4xl font-black leading-none text-amber-900 dark:text-amber-100"></div>
+                <div id="checkout-minimum-asset" class="text-sm font-medium text-amber-800 dark:text-amber-300"></div>
+            </div>
 
             <p id="checkout-error" class="hidden text-sm text-red-600 dark:text-red-400"></p>
 
@@ -365,26 +370,15 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
         const DASH_DECIMALS = 8
         const DASH_ATOM = Math.pow(10, DASH_DECIMALS)
 
-        // The key /admin writes. Read here so the two pages share one setting.
-        const CONFIG_STORAGE_KEY = 'dashpoint.config.v1'
-
-        // Read the payout address saved on /admin for this device.
-        function storedPayoutAddress(): string {
-            try {
-                const raw = JSON.parse(localStorage.getItem(CONFIG_STORAGE_KEY) || '{}')
-                return typeof raw.destinationAddress === 'string' ? raw.destinationAddress.trim() : ''
-            } catch {
-                return ''
-            }
-        }
-
         const checkoutPanel = document.getElementById('checkout-panel')
         const checkoutClose = document.getElementById('checkout-close')
         const checkoutAsset = document.getElementById('checkout-asset') as HTMLSelectElement | null
-        const checkoutDestination = document.getElementById('checkout-destination') as HTMLInputElement | null
         const checkoutQuoteBtn = document.getElementById('checkout-quote') as HTMLButtonElement | null
         const checkoutError = document.getElementById('checkout-error')
         const checkoutSetup = document.getElementById('checkout-setup')
+        const checkoutMinimum = document.getElementById('checkout-minimum')
+        const checkoutMinimumUsd = document.getElementById('checkout-minimum-usd')
+        const checkoutMinimumAsset = document.getElementById('checkout-minimum-asset')
         const checkoutResult = document.getElementById('checkout-result')
         const checkoutAmount = document.getElementById('checkout-amount')
         const checkoutAmountUsd = document.getElementById('checkout-amount-usd')
@@ -396,6 +390,13 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
 
         // The origin assets, loaded once from the API.
         let originAssets: Array<{ id: string; label: string; blockchain: string; decimals: number; symbol: string }> = []
+
+        // The asset to reselect once the list arrives, from the last checkout.
+        let restoredAssetId = ''
+
+        // DASH is the destination. Its decimals are fixed at 8, so a duff amount
+        // from the API is converted to DASH by dividing by 1e8.
+        const DASH_ATOM_FOR_MIN = 1e8
 
         // The active swap, kept so the poller can stop and the UI can restore it.
         let activeQuote: any = null
@@ -410,7 +411,12 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
         // clearing it is harmless.
         const CHECKOUT_STORAGE_KEY = 'dashpoint.checkout.v1'
 
-        function loadCheckoutPrefs(): { destinationAddress?: string } {
+        /*
+         * Remember the last asset the clerk chose, so a busy counter does not
+         * have to reselect it for every sale. The payout address is no longer
+         * stored here: it is fixed by the API and is never entered on this page.
+         */
+        function loadCheckoutPrefs(): { originAsset?: string } {
             try {
                 return JSON.parse(localStorage.getItem(CHECKOUT_STORAGE_KEY) || '{}')
             } catch {
@@ -421,7 +427,7 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
         function saveCheckoutPrefs() {
             try {
                 const prefs = loadCheckoutPrefs()
-                prefs.destinationAddress = checkoutDestination?.value?.trim() || prefs.destinationAddress
+                prefs.originAsset = checkoutAsset?.value || prefs.originAsset
                 localStorage.setItem(CHECKOUT_STORAGE_KEY, JSON.stringify(prefs))
             } catch {
                 // Storage can be unavailable (private mode). Not fatal.
@@ -445,17 +451,16 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
 
         /*
          * Ask the API whether a payout address exists, then reflect that in the
-         * panel. The API is the authority: a device-local address is only a
-         * convenience, so the terminal is ready when either one is present.
+         * panel. The API is the only authority now that no address is entered
+         * on this page.
          */
         async function refreshTerminalReadiness() {
-            const local = checkoutDestination?.value?.trim() || ''
             try {
                 const health = await apiFetch('/v1/health')
-                terminalReady = Boolean(health?.terminalReady) || Boolean(local)
+                terminalReady = Boolean(health?.terminalReady)
             } catch {
                 /* A health failure is reported by the quote attempt itself. */
-                terminalReady = local ? true : null
+                terminalReady = null
             }
             setSetupPromptVisible(terminalReady === false)
             syncQuoteButton()
@@ -465,7 +470,7 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
         function syncQuoteButton() {
             if (!checkoutQuoteBtn) return
             checkoutQuoteBtn.disabled = terminalReady === false
-            checkoutQuoteBtn.textContent = terminalReady === false ? 'Terminal not configured' : 'Get quote'
+            checkoutQuoteBtn.textContent = terminalReady === false ? 'Terminal not configured' : 'Get Total'
         }
 
         function usdToDuff(usd: number, dashPrice: number): string {
@@ -481,6 +486,41 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
             if (!checkoutError) return
             checkoutError.textContent = message
             checkoutError.classList.remove('hidden')
+        }
+
+        /*
+         * Show the minimum in dollars, and hide it when there is none.
+         *
+         * The API converts 1Click's base-unit floor into a USD figure, because
+         * the raw number in the upstream message is DASH duff and is meaningless
+         * to a customer at a counter.
+         */
+        function showMinimum(minimumUsd: number | null, assetSymbol?: string, minimumAsset?: string) {
+            if (!checkoutMinimum) return
+            if (minimumUsd === null || !Number.isFinite(minimumUsd)) {
+                checkoutMinimum.classList.add('hidden')
+                checkoutMinimum.classList.remove('flex')
+                return
+            }
+            if (checkoutMinimumUsd) {
+                checkoutMinimumUsd.textContent = `$${minimumUsd.toFixed(2)}`
+            }
+            if (checkoutMinimumAsset) {
+                /*
+                 * Name the origin asset so the figure is unambiguous, and the
+                 * equivalent in that asset when the API supplies it.
+                 */
+                const parts: string[] = []
+                if (minimumAsset) parts.push(minimumAsset)
+                if (assetSymbol) parts.push(`paid in ${assetSymbol}`)
+                checkoutMinimumAsset.textContent = parts.join(' — ')
+            }
+            checkoutMinimum.classList.remove('hidden')
+            checkoutMinimum.classList.add('flex')
+        }
+
+        function clearMinimum() {
+            showMinimum(null)
         }
 
         function clearCheckoutError() {
@@ -500,7 +540,14 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
                 body = { error: text }
             }
             if (!response.ok) {
-                throw new Error(body?.error || `Request failed with ${response.status}`)
+                /*
+                 * The parsed body is attached so a caller can read structured
+                 * detail, such as the minimum for this route, rather than only
+                 * the sentence meant for a human.
+                 */
+                const error = new Error(body?.error || `Request failed with ${response.status}`) as Error & { body?: any }
+                error.body = body
+                throw error
             }
             return body
         }
@@ -518,8 +565,14 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
                     option.textContent = `${asset.label} (${asset.symbol})`
                     checkoutAsset.appendChild(option)
                 }
-                // Prefer BTC by default when present.
-                const preferred = originAssets.find((a) => a.id === 'btc') || originAssets[0]
+                /*
+                 * Reselect the asset the clerk used last, so a busy counter does
+                 * not have to pick it again. Fall back to BTC, then to the first
+                 * entry, so the list is never left unselected.
+                 */
+                const preferred = originAssets.find((a) => a.id === restoredAssetId)
+                    || originAssets.find((a) => a.id === 'btc')
+                    || originAssets[0]
                 if (preferred) checkoutAsset.value = preferred.id
             } catch (error: any) {
                 showCheckoutError(`Could not load payment methods: ${error.message}`)
@@ -543,13 +596,11 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
                 checkoutMemoWrap.classList.remove('flex')
             }
             setSetupPromptVisible(false)
+            clearMinimum()
 
-            // Restore the remembered payout address, if any. The /admin setting
-            // wins, then the last address used on this device.
+            // Restore the asset the clerk last used, if any.
             const prefs = loadCheckoutPrefs()
-            if (checkoutDestination && !checkoutDestination.value) {
-                checkoutDestination.value = storedPayoutAddress() || prefs.destinationAddress || ''
-            }
+            restoredAssetId = prefs.originAsset || ''
 
             checkoutPanel?.classList.remove('hidden')
             void loadAssets()
@@ -572,14 +623,13 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
             }
         }
 
-        // Request a quote and render the payment instructions.
+        // Request a total and render the payment instructions.
         async function requestQuote() {
             if (!checkoutQuoteBtn || !checkoutAsset) return
             clearCheckoutError()
+            clearMinimum()
 
-            const destinationAddress = checkoutDestination?.value?.trim() || ''
-
-            if (!destinationAddress && terminalReady === false) {
+            if (terminalReady === false) {
                 showCheckoutError('This terminal has no DASH payout address configured.')
                 return
             }
@@ -595,15 +645,19 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
                     throw new Error('The DASH price is unavailable, so the amount cannot be calculated.')
                 }
 
-                checkoutQuoteBtn.textContent = 'Getting quote...'
+                checkoutQuoteBtn.textContent = 'Getting total...'
 
+                /*
+                 * No destinationAddress is sent. The payout target is fixed by
+                 * MERCHANT_DASH_ADDRESS on the Worker, so the browser cannot
+                 * choose or reveal where the money goes.
+                 */
                 const quote = await apiFetch('/v1/quote', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         originAsset: checkoutAsset.value,
-                        amount: duff,
-                        destinationAddress
+                        amount: duff
                     })
                 })
 
@@ -611,10 +665,25 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
                 saveCheckoutPrefs()
                 renderQuote(quote, priceData.price)
             } catch (error: any) {
-                showCheckoutError(error.message)
+                /*
+                 * A too-low sale is reported with the floor the API worked out.
+                 * apiFetch keeps the parsed body on the error so the dollar
+                 * figure and the asset equivalent can be shown at display size
+                 * instead of the raw base-unit number from upstream.
+                 */
+                if (error?.body?.minimumUsd !== undefined) {
+                    showMinimum(
+                        Number(error.body.minimumUsd),
+                        error.body.originSymbol,
+                        error.body.minimumOriginFormatted
+                    )
+                    showCheckoutError('This sale is below the minimum for the selected payment method.')
+                } else {
+                    showCheckoutError(error.message)
+                }
             } finally {
                 checkoutQuoteBtn.disabled = false
-                checkoutQuoteBtn.textContent = 'Get quote'
+                checkoutQuoteBtn.textContent = 'Get Total'
             }
         }
 
@@ -694,10 +763,10 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
 
         checkoutQuoteBtn?.addEventListener('click', () => { void requestQuote() })
         checkoutClose?.addEventListener('click', closeCheckout)
-        checkoutDestination?.addEventListener('change', () => {
+        checkoutAsset?.addEventListener('change', () => {
             saveCheckoutPrefs()
-            /* An address just entered can make the terminal ready. */
-            void refreshTerminalReadiness()
+            /* A new asset has its own floor, so a stale minimum must not linger. */
+            clearMinimum()
         })
 
         // --- PWA ---
