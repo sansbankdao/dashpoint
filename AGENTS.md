@@ -79,10 +79,36 @@ pnpm astro check      # astro/TypeScript diagnostics
 
 ## Integration context: NEAR Intents (for planned any-crypto payments)
 
-The `ANY-crypto -> DASH` POS feature is **not implemented**. The following facts
-were verified live from the NEAR Intents documentation and API on 2026-09-25 and
-must be used instead of the figures in the legacy engineering handoff, which
-contained several errors.
+The `ANY-crypto -> DASH` POS feature **is implemented and live** as of
+2026-09-25. The POS Charge flow calls the `dashpoint-api` Worker (see
+"Deployed API" below). The following facts were verified live from the NEAR
+Intents documentation and API on 2026-09-25 and must be used instead of the
+figures in the legacy engineering handoff, which contained several errors.
+
+### Deployed API
+
+The checkout is served by the `dashpoint-api` Worker, which is routed at `/v1`
+on this zone and on `dashpoint.store`, in front of the static Pages site.
+
+| Endpoint | Purpose |
+| --- | --- |
+| `GET /v1/health` | Liveness, destination asset, `partnerKeyPresent` |
+| `GET /v1/assets` | Origin chains the POS can accept |
+| `GET /v1/price` | DASH spot price in USD, read from the 1Click token list |
+| `POST /v1/quote` | Create an `EXACT_OUTPUT` swap paying out to a DASH address |
+| `GET /v1/status` | Track a swap by deposit address (and memo) |
+| `GET /v1/docs`, `/v1/redoc`, `/v1/openapi.json` | Generated API browser and spec |
+
+- Source: `github.com/sansbankdao/dashpoint-api` (private).
+- The partner JWT lives in a Cloudflare Secrets Store binding on the Worker.
+  It is never sent to the browser and never committed to this repository. Do
+  not add it to any tracked file; the POS has no need for it.
+- `partnerKeyPresent: true` from `/v1/health` and `authenticated: true` on a
+  quote are the observable proof that the binding resolves.
+- `/admin` is a **local-only** page: `astro dev` serves it, and
+  `scripts/exclude-admin.mjs` deletes `dist/admin` during `npm run build` so
+  Cloudflare Pages cannot publish it. The checkout panel collects the payout
+  address per sale instead of storing it in a published page.
 
 ### What NEAR Intents is, and which surface to integrate
 
