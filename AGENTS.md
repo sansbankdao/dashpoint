@@ -1,13 +1,14 @@
 <!-- AGENTS.md -->
-# AGENTS.md — dashpoint.store (DashPoint Store)
+# AGENTS.md — dashpoint.store (Homemade Crypto)
 
 Guidance for AI coding agents working in this repository.
 
 ## Repository facts
 
-- **Purpose:** Browser-based kombucha storefront. The customer views a grid of
-  products and builds a cart; payment is not yet wired to a backend.
-- **Stack:** Astro `5.14.1` (static site) + Tailwind CSS `4.1.14` wired through
+- **Purpose:** Browser-based kombucha storefront for the **Homemade Crypto**
+  brand. The customer views a grid of products and builds a cart; payment is not
+  yet wired to a backend.
+- **Stack:** Astro `7.3.5` (static site) + Tailwind CSS `4.3.3` wired through
   `@tailwindcss/vite`. TypeScript via `astro/tsconfigs/strict`. Package manager:
   pnpm (see `pnpm-lock.yaml`, lockfileVersion `9.0`).
 - **Site origin:** `https://dashpoint.store` (set as `site` in

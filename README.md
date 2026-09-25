@@ -1,4 +1,4 @@
-# DashPoint Store
+# Homemade Crypto
 
 A kombucha storefront built with [Astro](https://astro.build) and [Tailwind CSS](https://tailwindcss.com), maintained by Sansbank DAO.
 
