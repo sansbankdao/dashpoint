@@ -50,7 +50,36 @@ src/styles/global.css     contains only: @import "tailwindcss";
   `tip:preset`. Events always use `bubbles: true, composed: true`.
 - `Display.astro` divides `amountStr` by 100 to show dollars. Keep this contract:
   `amountStr` is **cents as an integer string** everywhere.
-- The Pay Now button is disabled until `total > 0`.
+- The Pay Now button is disabled until `total > 0`, and also while `total` is
+  below the measured minimum (`lowestMinimumUsd`). Below the minimum the button
+  reads `Below minimum $X.XX`, and the click handler repeats the check so the
+  rule holds even if the button state is stale.
+- **The minimum is measured, not published.** 1Click exposes no limits or
+  minimum endpoint (verified: its OpenAPI paths are `/v0/tokens`, `/v0/quote`,
+  `/v0/status`, `/v0/deposit/submit`, `/v0/orders`, `/v0/generate-intent`,
+  `/v0/submit-intent`, `/v0/any-input/withdrawals`, `/v0/auth/*`) and the token
+  list carries no minimum field. The only source is the refusal message
+  `Amount is too low for bridge, try at least <N>`, where `N` is in
+  **destination base units (DASH duff)**. `GET /v1/minimum` probes every route
+  with `dry: true` and reports the **lowest** floor plus every asset that
+  reaches it, because a sale is payable when any one accepted asset can cover
+  it. `dry: true` is documented to simulate a quote "without generating a
+  deposit address or initiating the swap process", so probing creates no
+  addresses; it does still validate `recipient`, which is why a valid DASH
+  address is always sent.
+- **Floors measured live**: `1000000` duff for sol, eth, usdc-eth, usdt-eth,
+  usdc-sol, ltc, doge, eth-base, usdc-base, usdc-arb, usdc-op, usdc-avax;
+  `8572595` for btc; `4914854` for xrp. `dai-eth` ("No liquidity available"),
+  `usdc-pol` and `usdt-tron` ("Temporary swap limits") are unusable.
+- **A missing figure is `null`, never `0`.** A `$0.00` minimum reads as
+  "anything is accepted" and disables the very warning it exists to give.
+- The Pay Now enabled state is driven by `updateDOM()`, which is why
+  `loadMinimum()` calls it after the figure arrives.
+- The Discount and Tip tabs are enabled from `total` (plus any applied discount
+  or tip), **not** `hasBaseAmount`. Gating on `hasBaseAmount` locked the tabs
+  for a clerk who typed the whole sale on the display — the same bug that was
+  fixed for Pay Now. A 100% discount zeroes the total, so an applied discount or
+  tip also counts as a sale in progress.
 - `calculateTotal()` = `(baseAmount + amountStr/100) * (1 - discount/100) * (1 + tip/100)`.
   `baseAmount` holds the running subtotal accumulated with the `+` key, and
   `amountStr` is the amount currently on the display. Both must be summed: a
@@ -127,6 +156,7 @@ on this zone and on `dashpoint.store`, in front of the static Pages site.
 | `GET /v1/health` | Liveness, destination asset, `partnerKeyPresent` |
 | `GET /v1/assets` | Origin chains the POS can accept |
 | `GET /v1/price` | DASH spot price in USD, read from the 1Click token list |
+| `GET /v1/minimum` | Lowest payable amount across routes, in DASH and USD, with the assets that reach it |
 | `POST /v1/quote` | Create an `EXACT_OUTPUT` swap paying out to a DASH address |
 | `GET /v1/status` | Track a swap by deposit address (and memo) |
 | `GET /v1/docs`, `/v1/redoc`, `/v1/openapi.json` | Generated API browser and spec |

@@ -50,6 +50,21 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
                 <ModeContent client:load />
             </div>
 
+            <!--
+                Minimum payment banner.
+
+                The floor is per-route and is only reported by 1Click when it
+                REFUSES a quote, which is after the clerk has committed to a
+                sale. It is read up front from GET /v1/minimum and shown here,
+                on the amount screen, so a sale that cannot be paid is known
+                before the payment screen opens.
+            -->
+            <div id="pos-minimum" class="hidden flex-col items-center gap-1 rounded-2xl border-2 border-amber-400 dark:border-amber-600 bg-amber-50 dark:bg-amber-950/40 px-4 py-3 text-center">
+                <div class="text-xs font-semibold uppercase tracking-wide text-amber-800 dark:text-amber-300">Minimum payment</div>
+                <div id="pos-minimum-usd" class="text-3xl font-black leading-none text-amber-900 dark:text-amber-100"></div>
+                <div id="pos-minimum-assets" class="text-sm font-medium text-amber-800 dark:text-amber-300"></div>
+            </div>
+
             <!-- Mode Tabs -->
             <ModeTabs client:load />
 
@@ -164,6 +179,22 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
         const app = document.getElementById('pos-app')
         const chargeBtn = document.getElementById('charge-btn')
 
+        /*
+         * The lowest amount any accepted asset can pay.
+         *
+         * Null until GET /v1/minimum answers, and left null when the price is
+         * unavailable. It is NEVER 0: a $0.00 floor reads as "anything is
+         * accepted" and would silently disable the warning it exists to give.
+         */
+        let lowestMinimumUsd: number | null = null
+
+        /* The assets that can pay the reported minimum, as a short label. */
+        let minimumAssetSummary = ''
+
+        const posMinimum = document.getElementById('pos-minimum')
+        const posMinimumUsd = document.getElementById('pos-minimum-usd')
+        const posMinimumAssets = document.getElementById('pos-minimum-assets')
+
         // Custom Events
         app?.addEventListener('modechange', (e: any) => {
             activeMode = e.detail.mode
@@ -258,9 +289,29 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
              * whether it was typed on the display or accumulated with +. The
              * hasBaseAmount flag alone was not enough, because a sale can be
              * entered entirely on the display without pressing + first.
+             *
+             * A total below the lowest route minimum is ALSO not payable: no
+             * accepted asset can cover it, so the sale is refused here rather
+             * than after the customer has chosen a payment method.
              */
-            chargeBtn!.textContent = total > 0 ? `Pay Now ${formatCurrency(total)}` : 'Pay Now'
-            ;(chargeBtn! as HTMLButtonElement).disabled = total <= 0
+            const belowMinimum = total > 0 && lowestMinimumUsd !== null && total < lowestMinimumUsd
+            chargeBtn!.textContent = belowMinimum
+                ? `Below minimum ${formatCurrency(lowestMinimumUsd!)}`
+                : (total > 0 ? `Pay Now ${formatCurrency(total)}` : 'Pay Now')
+            ;(chargeBtn! as HTMLButtonElement).disabled = total <= 0 || belowMinimum
+            /*
+             * Show the floor on the amount screen whenever it is known. It is
+             * shown even when the current total clears it, because the clerk
+             * needs the figure before ringing up a small sale.
+             */
+            if (posMinimumUsd) {
+                posMinimumUsd.textContent = lowestMinimumUsd === null
+                    ? '—'
+                    : formatCurrency(lowestMinimumUsd)
+            }
+            if (posMinimumAssets) {
+                posMinimumAssets.textContent = minimumAssetSummary
+            }
         }
 
         function handleKeyInput(key: string) {
@@ -330,6 +381,15 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
                 alert('Please enter a valid amount.')
                 return
             }
+            /*
+             * Refuse a sale no accepted asset can cover. The button is already
+             * disabled in this case; this guards the click itself so the rule
+             * holds even if the button state is stale.
+             */
+            if (lowestMinimumUsd !== null && total < lowestMinimumUsd) {
+                alert(`This sale is below the minimum of ${formatCurrency(lowestMinimumUsd)}.`)
+                return
+            }
             openCheckout(total)
 
             // Reset
@@ -344,6 +404,13 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
 
         // Initial update
         updateDOM()
+
+        /*
+         * Learn the minimum in the background. It is not awaited: the terminal
+         * must be usable immediately, and the banner appears when the figure
+         * arrives. The Pay button is re-evaluated by updateDOM() on arrival.
+         */
+        void loadMinimum()
 
         // --- CHECKOUT (dashpoint-api) ---
         //
@@ -489,6 +556,50 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
             if (!checkoutQuoteBtn) return
             checkoutQuoteBtn.disabled = terminalReady === false
             checkoutQuoteBtn.textContent = terminalReady === false ? 'Terminal not configured' : 'Get Total'
+        }
+
+        /*
+         * Read the lowest payable amount and show it on the amount screen.
+         *
+         * The floor is measured by the API, which probes every route because
+         * 1Click publishes no minimum anywhere: the only way to learn it is a
+         * refusal. The API reports the LOWEST floor together with every asset
+         * that reaches it, because a sale is payable when any one accepted
+         * asset can cover it, and names them so the clerk can see the sale is
+         * still payable in another currency.
+         *
+         * This is best-effort. A failure leaves the banner hidden and the Pay
+         * button behaves as before, so an unreachable API degrades to the
+         * previous behaviour rather than blocking every sale.
+         */
+        async function loadMinimum() {
+            try {
+                const data = await apiFetch('/v1/minimum')
+                /*
+                 * Only a finite positive number is a floor. A missing price
+                 * arrives as null and must stay null rather than becoming 0.
+                 */
+                lowestMinimumUsd = Number.isFinite(data?.minimumUsd) && data.minimumUsd > 0
+                    ? Number(data.minimumUsd)
+                    : null
+
+                const symbols: string[] = Array.from(
+                    new Set((data?.assets ?? []).map((asset: any) => String(asset.symbol)))
+                )
+                minimumAssetSummary = symbols.length > 0
+                    ? `payable in ${symbols.join(', ')}`
+                    : ''
+
+                if (posMinimum) {
+                    posMinimum.classList.remove('hidden')
+                    posMinimum.classList.add('flex')
+                }
+                updateDOM()
+            } catch {
+                /* Leave the banner hidden; the checkout path reports failures. */
+                lowestMinimumUsd = null
+                minimumAssetSummary = ''
+            }
         }
 
         function usdToDuff(usd: number, dashPrice: number): string {

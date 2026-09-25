@@ -59,12 +59,22 @@
 
         // Update tip buttons
         document.querySelectorAll('#Mode-Tip [data-tip]').forEach((btn: any) => {
-            const btnTip = parseInt(btn.dataset.tip)
-            btn.classList.toggle('bg-blue-500', btnTip === e.detail.tipPercent)
-            btn.classList.toggle('text-white', btnTip === e.detail.tipPercent)
-            btn.classList.toggle('border-blue-500', btnTip === e.detail.tipPercent)
-            btn.classList.toggle('shadow-lg', btnTip === e.detail.tipPercent)
-            btn.classList.toggle('scale-105', btnTip === e.detail.tipPercent)
+            /*
+             * "custom" is not a number. parseInt turned it into NaN, and NaN
+             * never equals tipPercent, so the Custom button could never show as
+             * selected. It is a mode switch rather than a preset, so it is only
+             * marked when the mode is Tip and no preset is active.
+             */
+            const isCustom = btn.dataset.tip === 'custom'
+            const btnTip = isCustom ? NaN : parseInt(btn.dataset.tip, 10)
+            const active = isCustom
+                ? activeMode === 'tip' && !(e.detail.tipPercent > 0)
+                : btnTip === e.detail.tipPercent
+            btn.classList.toggle('bg-blue-500', active)
+            btn.classList.toggle('text-white', active)
+            btn.classList.toggle('border-blue-500', active)
+            btn.classList.toggle('shadow-lg', active)
+            btn.classList.toggle('scale-105', active)
         })
     })
 </script>
