@@ -60,35 +60,34 @@ const defaults = DEFAULT_CONFIG
                     </div>
                 </section>
 
-                <!-- NEAR Intents payouts -->
+                <!-- Payouts -->
                 <section class="bg-white/90 dark:bg-slate-800/90 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-6 flex flex-col gap-4">
-                    <h2 class="text-lg font-semibold">NEAR Intents payouts</h2>
+                    <h2 class="text-lg font-semibold">Payouts</h2>
 
                     <div class="flex flex-col gap-1">
-                        <label for="destinationAddress" class="text-sm font-medium text-slate-600 dark:text-slate-300">Destination DASH address</label>
+                        <label for="destinationAddress" class="text-sm font-medium text-slate-600 dark:text-slate-300">Your DASH payout address (this device)</label>
                         <input id="destinationAddress" name="destinationAddress" type="text" maxlength="48" spellcheck="false" autocomplete="off"
                             placeholder="X…"
                             value={defaults.destinationAddress}
                             class="rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-4 py-3 font-mono text-sm outline-none focus:ring-2 focus:ring-blue-500" />
                         <p id="destinationAddress-status" class="text-xs text-slate-500 dark:text-slate-400">Validated as a Dash mainnet P2PKH address.</p>
+                        <p class="text-xs text-slate-500 dark:text-slate-400">
+                            Used for sales taken on this browser. The address that receives funds for the deployed site is
+                            <code class="font-mono">MERCHANT_DASH_ADDRESS</code> on the API Worker, set with
+                            <code class="font-mono">wrangler secret put</code>. It is deliberately not editable here.
+                        </p>
                     </div>
 
-                    <div class="flex flex-col gap-1">
-                        <label for="refundAddress" class="text-sm font-medium text-slate-600 dark:text-slate-300">Refund DASH address</label>
-                        <input id="refundAddress" name="refundAddress" type="text" maxlength="48" spellcheck="false" autocomplete="off"
-                            placeholder="X…"
-                            value={defaults.refundAddress}
-                            class="rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-4 py-3 font-mono text-sm outline-none focus:ring-2 focus:ring-blue-500" />
-                        <p id="refundAddress-status" class="text-xs text-slate-500 dark:text-slate-400">Where unfulfilled swaps are automatically returned.</p>
-                    </div>
-
-                    <div class="flex flex-col gap-1">
-                        <label for="apiKey" class="text-sm font-medium text-slate-600 dark:text-slate-300">1Click partner JWT (optional)</label>
-                        <input id="apiKey" name="apiKey" type="password" maxlength="512" spellcheck="false" autocomplete="off"
-                            placeholder="Leave empty for unauthenticated quotes"
-                            value={defaults.apiKey}
-                            class="rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-4 py-3 font-mono text-sm outline-none focus:ring-2 focus:ring-blue-500" />
-                        <p class="text-xs text-slate-500 dark:text-slate-400">Authenticated quotes cost 0.20% instead of 0.25%. A browser-held key is visible to users; move this to a server proxy before launch.</p>
+                    <!-- Secret key handling -->
+                    <div class="rounded-xl border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/40 p-4 flex flex-col gap-2">
+                        <h3 class="text-sm font-semibold text-amber-900 dark:text-amber-200">Partner key</h3>
+                        <p class="text-xs text-amber-900 dark:text-amber-200">
+                            The 1Click partner JWT is stored server-side in Cloudflare Secrets Store and is never entered,
+                            stored, or transmitted from this page. Quotes made through the API are authenticated
+                            automatically. Do not paste the JWT into this admin page or into any file in this repository:
+                            anything done in a browser is readable by whoever opens the page.
+                        </p>
+                        <p id="key-status" class="text-xs font-medium text-amber-900 dark:text-amber-200"></p>
                     </div>
                 </section>
 
@@ -113,7 +112,7 @@ const defaults = DEFAULT_CONFIG
         <!-- Footer -->
         <footer class="bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm border-t border-slate-200 dark:border-slate-700 px-6 py-4 mt-auto">
             <div class="text-center text-sm text-slate-500 dark:text-slate-400">
-                Settings are stored in this browser only.
+                Display settings are stored in this browser only. Payment settings are stored on the server.
             </div>
         </footer>
     </div>
@@ -121,18 +120,21 @@ const defaults = DEFAULT_CONFIG
     <script>
         import { DEFAULT_CONFIG, loadConfig, saveConfig, clearConfig, isValidDashAddress, type PosConfig } from '../lib/config'
 
+        const API_BASE = '/v1'
+
         const form = document.getElementById('admin-form') as HTMLFormElement
         const statusEl = document.getElementById('status')!
+        const keyStatusEl = document.getElementById('key-status')!
         const saveBtn = document.getElementById('save-btn') as HTMLButtonElement
         const resetBtn = document.getElementById('reset-btn') as HTMLButtonElement
 
+        // `apiKey` is intentionally absent: the partner JWT is a server-side
+        // secret and this page never reads or writes it.
         const fields: Array<keyof PosConfig> = [
             'storeName',
             'currency',
             'tipPresets',
-            'destinationAddress',
-            'refundAddress',
-            'apiKey'
+            'destinationAddress'
         ]
 
         function inputFor(name: keyof PosConfig): HTMLInputElement {
@@ -150,8 +152,8 @@ const defaults = DEFAULT_CONFIG
             )
         }
 
-        function setAddressStatus(name: 'destinationAddress' | 'refundAddress', message: string, tone: 'ok' | 'error' | 'muted') {
-            const el = document.getElementById(name + '-status')!
+        function setAddressStatus(message: string, tone: 'ok' | 'error' | 'muted') {
+            const el = document.getElementById('destinationAddress-status')!
             el.textContent = message
             el.className = 'text-xs ' + (
                 tone === 'ok'
@@ -167,8 +169,6 @@ const defaults = DEFAULT_CONFIG
             inputFor('currency').value = config.currency
             inputFor('tipPresets').value = config.tipPresets.join(', ')
             inputFor('destinationAddress').value = config.destinationAddress
-            inputFor('refundAddress').value = config.refundAddress
-            inputFor('apiKey').value = config.apiKey
         }
 
         function parseTipPresets(raw: string): number[] | null {
@@ -200,32 +200,41 @@ const defaults = DEFAULT_CONFIG
                 currency: inputFor('currency').value.trim().toUpperCase() || DEFAULT_CONFIG.currency,
                 tipPresets,
                 destinationAddress: inputFor('destinationAddress').value.trim(),
-                refundAddress: inputFor('refundAddress').value.trim(),
-                apiKey: inputFor('apiKey').value.trim()
+                // The JWT is never read from this page. Carrying the stored
+                // value through unchanged keeps the previous behaviour of the
+                // config object without ever surfacing it in the UI.
+                refundAddress: DEFAULT_CONFIG.refundAddress,
+                apiKey: DEFAULT_CONFIG.apiKey
             }
         }
 
-        async function validateAddresses(config: PosConfig): Promise<boolean> {
-            let valid = true
+        async function validateAddress(): Promise<boolean> {
+            const value = inputFor('destinationAddress').value.trim()
 
-            for (const name of ['destinationAddress', 'refundAddress'] as const) {
-                const value = config[name]
-
-                if (!value) {
-                    setAddressStatus(name, name === 'destinationAddress'
-                        ? 'Validated as a Dash mainnet P2PKH address.'
-                        : 'Where unfulfilled swaps are automatically returned.', 'muted')
-                    continue
-                }
-
-                const ok = await isValidDashAddress(value)
-                valid = valid && ok
-                setAddressStatus(name, ok
-                    ? 'Valid Dash mainnet address.'
-                    : 'Not a valid Dash mainnet P2PKH address.', ok ? 'ok' : 'error')
+            if (!value) {
+                setAddressStatus('Validated as a Dash mainnet P2PKH address.', 'muted')
+                return true
             }
 
-            return valid
+            const ok = await isValidDashAddress(value)
+            setAddressStatus(ok
+                ? 'Valid Dash mainnet address.'
+                : 'Not a valid Dash mainnet P2PKH address.', ok ? 'ok' : 'error')
+            return ok
+        }
+
+        // Report whether the deployed API has a partner key bound, without
+        // revealing it. /v1/health exposes only a boolean.
+        async function reportKeyStatus() {
+            try {
+                const response = await fetch(`${API_BASE}/health`)
+                const data = await response.json()
+                keyStatusEl.textContent = data.partnerKeyPresent
+                    ? 'Partner key is configured on the server. Quotes are authenticated.'
+                    : 'No partner key configured on the server. Quotes use the public schedule.'
+            } catch {
+                keyStatusEl.textContent = 'Could not reach the API to check the partner key.'
+            }
         }
 
         form.addEventListener('submit', async (event) => {
@@ -234,8 +243,7 @@ const defaults = DEFAULT_CONFIG
             const config = readForm()
             if (!config) return
 
-            const addressesValid = await validateAddresses(config)
-            if (!addressesValid) {
+            if (!(await validateAddress())) {
                 setStatus('Fix the highlighted address before saving.', 'error')
                 return
             }
@@ -252,27 +260,24 @@ const defaults = DEFAULT_CONFIG
         resetBtn.addEventListener('click', () => {
             clearConfig()
             fillForm({ ...DEFAULT_CONFIG })
-            setAddressStatus('destinationAddress', 'Validated as a Dash mainnet P2PKH address.', 'muted')
-            setAddressStatus('refundAddress', 'Where unfulfilled swaps are automatically returned.', 'muted')
+            setAddressStatus('Validated as a Dash mainnet P2PKH address.', 'muted')
             setStatus('Settings reset to defaults.', 'ok')
         })
 
         // Live re-validation as the operator types.
-        for (const name of ['destinationAddress', 'refundAddress'] as const) {
-            const input = inputFor(name)
+        {
+            const input = inputFor('destinationAddress')
             let timer: number | undefined
             input.addEventListener('input', () => {
                 if (timer) window.clearTimeout(timer)
                 timer = window.setTimeout(async () => {
                     const value = input.value.trim()
                     if (!value) {
-                        setAddressStatus(name, name === 'destinationAddress'
-                            ? 'Validated as a Dash mainnet P2PKH address.'
-                            : 'Where unfulfilled swaps are automatically returned.', 'muted')
+                        setAddressStatus('Validated as a Dash mainnet P2PKH address.', 'muted')
                         return
                     }
                     const ok = await isValidDashAddress(value)
-                    setAddressStatus(name, ok
+                    setAddressStatus(ok
                         ? 'Valid Dash mainnet address.'
                         : 'Not a valid Dash mainnet P2PKH address.', ok ? 'ok' : 'error')
                 }, 250)
@@ -281,6 +286,7 @@ const defaults = DEFAULT_CONFIG
 
         // Hydrate from localStorage on load.
         fillForm(loadConfig())
+        void reportKeyStatus()
     </script>
 </body>
 </html>

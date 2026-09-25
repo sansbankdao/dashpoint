@@ -6,7 +6,7 @@
   "version": "25.10.3",
   "scripts": {
     "dev": "astro dev",
-    "build": "astro build && node scripts/exclude-admin.mjs",
+    "build": "astro build",
     "preview": "astro preview",
     "astro": "astro"
   },

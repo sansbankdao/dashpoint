@@ -105,10 +105,21 @@ on this zone and on `dashpoint.store`, in front of the static Pages site.
   not add it to any tracked file; the POS has no need for it.
 - `partnerKeyPresent: true` from `/v1/health` and `authenticated: true` on a
   quote are the observable proof that the binding resolves.
-- `/admin` is a **local-only** page: `astro dev` serves it, and
-  `scripts/exclude-admin.mjs` deletes `dist/admin` during `npm run build` so
-  Cloudflare Pages cannot publish it. The checkout panel collects the payout
-  address per sale instead of storing it in a published page.
+- `/admin` **is deployed** at `https://dashpoint.sale/admin`. It is marked
+  `noindex, nofollow` and is not linked from the POS, but it is publicly
+  reachable, so **no secret may ever be entered into it**. It stores display
+  settings and the merchant payout address in localStorage, which is
+  device-local, not shared between devices, and not authoritative.
+- **The partner JWT is never in this repository or in the browser.** It is a
+  Cloudflare Secrets Store binding on the Worker. `/admin` shows only a boolean
+  read from `GET /v1/health`. Do not add a field that accepts it.
+- The authoritative payout address is `MERCHANT_DASH_ADDRESS` on the Worker,
+  set with `wrangler secret put`. A quote that carries no `destinationAddress`
+  falls back to it, and is refused with a 400 if it is unset.
+- Refunds default to NEAR Intents to `REFUND_NEAR_ACCOUNT`
+  (`sansbank-dao.near`); 1Click requires `refundTo` to be non-empty for every
+  quote. A quote that carries a `refundAddress` refunds on the origin chain
+  instead.
 
 ### What NEAR Intents is, and which surface to integrate
 

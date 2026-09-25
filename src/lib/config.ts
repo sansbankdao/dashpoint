@@ -3,19 +3,31 @@
 /**
  * Shared POS configuration.
  *
- * Storage is browser localStorage only. This repository has no backend, so
- * these values are per-device. When the NEAR Intents server proxy is added,
- * every field except purely cosmetic ones must move server-side.
+ * Storage is browser localStorage only. This repository has no backend for
+ * these values, so they are per-device display preferences. Payment-critical
+ * settings live on the dashpoint-api Worker instead:
+ *
+ *   - The DASH payout address is `MERCHANT_DASH_ADDRESS` on the Worker.
+ *   - The 1Click partner JWT is a Cloudflare Secrets Store binding.
+ *   - Refunds default to the Worker's `REFUND_NEAR_ACCOUNT`.
+ *
+ * Nothing secret belongs in this file or in any value it stores, because
+ * localStorage is readable by anyone who opens the page.
  */
 
 export interface PosConfig {
     /** Shown in the POS header and footer. */
     storeName: string
-    /** DASH address that receives settled swaps (NEAR Intents `recipient`). */
+    /**
+     * DASH address for sales taken on THIS device.
+     *
+     * Sent to the API as `destinationAddress`, which wins over the server's
+     * configured address when present. Empty means "use the server default".
+     */
     destinationAddress: string
-    /** DASH address refunds return to (NEAR Intents `refundTo`). */
+    /** Reserved. Refunds are decided by the API, not by the browser. */
     refundAddress: string
-    /** 1Click partner JWT for the authenticated fee schedule. */
+    /** Reserved. The partner JWT is server-side and never held here. */
     apiKey: string
     /** Display currency label. The POS prices are currently USD-denominated. */
     currency: string

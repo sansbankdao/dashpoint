@@ -88,13 +88,6 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
                 <select id="checkout-asset" class="border border-slate-300 dark:border-slate-600 rounded-xl px-3 py-2 bg-white dark:bg-slate-900 text-base"></select>
             </label>
 
-            <!-- Refund address -->
-            <label class="flex flex-col gap-1 text-sm font-medium">
-                Your refund address
-                <span id="checkout-refund-hint" class="text-xs font-normal text-slate-500 dark:text-slate-400"></span>
-                <input id="checkout-refund" type="text" autocomplete="off" class="border border-slate-300 dark:border-slate-600 rounded-xl px-3 py-2 bg-white dark:bg-slate-900 font-mono text-sm" />
-            </label>
-
             <!-- Destination address -->
             <label class="flex flex-col gap-1 text-sm font-medium">
                 DASH payout address
@@ -313,19 +306,34 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
         //   2. Ask the API for a quote, which returns a deposit address.
         //   3. Poll the API for the swap status until it settles.
         //
-        // The DASH destination address and the customer's refund address are
-        // entered here rather than stored, because /admin is local-only by
-        // design: a published admin page that could redirect payouts would put
-        // merchant funds one stored value away from an attacker.
+        // The DASH payout address is read from the settings saved on /admin for
+        // this device, and can be overridden per sale in the field below. A
+        // receiving address is not a secret, so keeping it in localStorage is
+        // appropriate. The API's MERCHANT_DASH_ADDRESS is the fallback whenever
+        // this field is left empty, so a sale is still payable with no setting.
+        //
+        // Refunds are decided by the API, not by the browser, so no
+        // customer-facing refund address is collected.
 
         const DASH_DECIMALS = 8
         const DASH_ATOM = Math.pow(10, DASH_DECIMALS)
 
+        // The key /admin writes. Read here so the two pages share one setting.
+        const CONFIG_STORAGE_KEY = 'dashpoint.config.v1'
+
+        // Read the payout address saved on /admin for this device.
+        function storedPayoutAddress(): string {
+            try {
+                const raw = JSON.parse(localStorage.getItem(CONFIG_STORAGE_KEY) || '{}')
+                return typeof raw.destinationAddress === 'string' ? raw.destinationAddress.trim() : ''
+            } catch {
+                return ''
+            }
+        }
+
         const checkoutPanel = document.getElementById('checkout-panel')
         const checkoutClose = document.getElementById('checkout-close')
         const checkoutAsset = document.getElementById('checkout-asset') as HTMLSelectElement | null
-        const checkoutRefund = document.getElementById('checkout-refund') as HTMLInputElement | null
-        const checkoutRefundHint = document.getElementById('checkout-refund-hint')
         const checkoutDestination = document.getElementById('checkout-destination') as HTMLInputElement | null
         const checkoutQuoteBtn = document.getElementById('checkout-quote') as HTMLButtonElement | null
         const checkoutError = document.getElementById('checkout-error')
@@ -348,12 +356,13 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
         // The dollar total captured when Charge was pressed.
         let checkoutTotal = 0
 
-        // Remember the merchant's payout and the entered refund addresses between
-        // checkouts on this device. These are convenience only: localStorage is
-        // never the source of truth for a payout, and clearing it is harmless.
+        // Remember the merchant's payout address between checkouts on this
+        // device. This is convenience only: localStorage is never the source of
+        // truth for a payout, and the API has its own configured address, so
+        // clearing it is harmless.
         const CHECKOUT_STORAGE_KEY = 'dashpoint.checkout.v1'
 
-        function loadCheckoutPrefs(): { destinationAddress?: string; refundByAsset?: Record<string, string> } {
+        function loadCheckoutPrefs(): { destinationAddress?: string } {
             try {
                 return JSON.parse(localStorage.getItem(CHECKOUT_STORAGE_KEY) || '{}')
             } catch {
@@ -365,10 +374,6 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
             try {
                 const prefs = loadCheckoutPrefs()
                 prefs.destinationAddress = checkoutDestination?.value?.trim() || prefs.destinationAddress
-                if (checkoutAsset?.value && checkoutRefund?.value?.trim()) {
-                    prefs.refundByAsset = prefs.refundByAsset || {}
-                    prefs.refundByAsset[checkoutAsset.value] = checkoutRefund.value.trim()
-                }
                 localStorage.setItem(CHECKOUT_STORAGE_KEY, JSON.stringify(prefs))
             } catch {
                 // Storage can be unavailable (private mode). Not fatal.
@@ -413,7 +418,7 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
             return body
         }
 
-        // Populate the asset list and the refund-address hint.
+        // Populate the asset list.
         async function loadAssets() {
             if (!checkoutAsset) return
             try {
@@ -429,25 +434,8 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
                 // Prefer BTC by default when present.
                 const preferred = originAssets.find((a) => a.id === 'btc') || originAssets[0]
                 if (preferred) checkoutAsset.value = preferred.id
-                updateRefundHint()
             } catch (error: any) {
                 showCheckoutError(`Could not load payment methods: ${error.message}`)
-            }
-        }
-
-        // Describe what address the currently selected chain expects.
-        function updateRefundHint() {
-            if (!checkoutRefundHint || !checkoutAsset) return
-            const asset = originAssets.find((a) => a.id === checkoutAsset!.value)
-            const prefs = loadCheckoutPrefs()
-            const remembered = asset ? prefs.refundByAsset?.[asset.id] : undefined
-            if (checkoutRefund && remembered && !checkoutRefund.value) {
-                checkoutRefund.value = remembered
-            }
-            if (asset) {
-                checkoutRefundHint.textContent = `An address on ${asset.blockchain.toUpperCase()} to return an unspent deposit.`
-            } else {
-                checkoutRefundHint.textContent = ''
             }
         }
 
@@ -468,13 +456,12 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
                 checkoutMemoWrap.classList.remove('flex')
             }
 
-            // Restore the remembered payout address, if any.
+            // Restore the remembered payout address, if any. The /admin setting
+            // wins, then the last address used on this device.
             const prefs = loadCheckoutPrefs()
-            if (checkoutDestination && !checkoutDestination.value && prefs.destinationAddress) {
-                checkoutDestination.value = prefs.destinationAddress
+            if (checkoutDestination && !checkoutDestination.value) {
+                checkoutDestination.value = storedPayoutAddress() || prefs.destinationAddress || ''
             }
-            if (checkoutRefund) checkoutRefund.value = ''
-            updateRefundHint()
 
             checkoutPanel?.classList.remove('hidden')
             void loadAssets()
@@ -498,14 +485,9 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
             clearCheckoutError()
 
             const destinationAddress = checkoutDestination?.value?.trim() || ''
-            const refundAddress = checkoutRefund?.value?.trim() || ''
 
             if (!destinationAddress) {
                 showCheckoutError('Enter the DASH address that should receive the payment.')
-                return
-            }
-            if (!refundAddress) {
-                showCheckoutError('Enter a refund address for the chain you are paying from.')
                 return
             }
 
@@ -528,8 +510,7 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
                     body: JSON.stringify({
                         originAsset: checkoutAsset.value,
                         amount: duff,
-                        destinationAddress,
-                        refundAddress
+                        destinationAddress
                     })
                 })
 
@@ -612,7 +593,7 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
                 case 'INCOMPLETE_DEPOSIT': return 'Deposit received is below the required amount.'
                 case 'PROCESSING': return 'Payment received. Sending DASH...'
                 case 'SUCCESS': return 'Payment complete.'
-                case 'REFUNDED': return 'The swap was refunded to your refund address.'
+                case 'REFUNDED': return 'The swap was refunded to the merchant refund account.'
                 case 'FAILED': return 'The swap failed. Please contact the merchant.'
                 default: return status
             }
@@ -620,12 +601,7 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
 
         checkoutQuoteBtn?.addEventListener('click', () => { void requestQuote() })
         checkoutClose?.addEventListener('click', closeCheckout)
-        checkoutAsset?.addEventListener('change', () => {
-            if (checkoutRefund) checkoutRefund.value = ''
-            updateRefundHint()
-        })
         checkoutDestination?.addEventListener('change', saveCheckoutPrefs)
-        checkoutRefund?.addEventListener('change', saveCheckoutPrefs)
     </script>
 </body>
 </html>
