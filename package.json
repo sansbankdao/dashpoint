@@ -1,11 +1,12 @@
 {
   "name": "dashpoint-sale",
+  "author": "Sansbank contributors <hello@sansbank.org>",
   "license": "MIT",
   "type": "module",
   "version": "25.10.3",
   "scripts": {
     "dev": "astro dev",
-    "build": "astro build",
+    "build": "astro build && node scripts/exclude-admin.mjs",
     "preview": "astro preview",
     "astro": "astro"
   },

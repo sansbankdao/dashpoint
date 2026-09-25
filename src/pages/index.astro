@@ -68,6 +68,63 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
         </footer>
     </div>
 
+    <!-- Checkout Panel -->
+    <!--
+        Hidden until a quote exists. This is a plain section rather than a new
+        component so that no existing component contract changes: the POS still
+        communicates through the same stateupdate / calculateTotal() model, and
+        this panel is driven from the same inline script.
+    -->
+    <div id="checkout-panel" class="hidden fixed inset-0 z-[60] bg-slate-900/60 backdrop-blur-sm p-4 overflow-y-auto">
+        <div class="max-w-lg mx-auto mt-8 bg-white dark:bg-slate-800 rounded-3xl shadow-2xl p-6 flex flex-col gap-4">
+            <div class="flex items-center justify-between">
+                <h2 class="text-xl font-bold">Pay with crypto</h2>
+                <button id="checkout-close" type="button" class="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 text-2xl leading-none">&times;</button>
+            </div>
+
+            <!-- Asset selector -->
+            <label class="flex flex-col gap-1 text-sm font-medium">
+                Pay with
+                <select id="checkout-asset" class="border border-slate-300 dark:border-slate-600 rounded-xl px-3 py-2 bg-white dark:bg-slate-900 text-base"></select>
+            </label>
+
+            <!-- Refund address -->
+            <label class="flex flex-col gap-1 text-sm font-medium">
+                Your refund address
+                <span id="checkout-refund-hint" class="text-xs font-normal text-slate-500 dark:text-slate-400"></span>
+                <input id="checkout-refund" type="text" autocomplete="off" class="border border-slate-300 dark:border-slate-600 rounded-xl px-3 py-2 bg-white dark:bg-slate-900 font-mono text-sm" />
+            </label>
+
+            <!-- Destination address -->
+            <label class="flex flex-col gap-1 text-sm font-medium">
+                DASH payout address
+                <input id="checkout-destination" type="text" autocomplete="off" class="border border-slate-300 dark:border-slate-600 rounded-xl px-3 py-2 bg-white dark:bg-slate-900 font-mono text-sm" />
+            </label>
+
+            <!-- Action / status -->
+            <button id="checkout-quote" type="button" class="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 disabled:from-slate-400 disabled:to-slate-500 text-white font-bold py-4 px-6 rounded-2xl shadow-lg disabled:cursor-not-allowed">
+                Get quote
+            </button>
+
+            <p id="checkout-error" class="hidden text-sm text-red-600 dark:text-red-400"></p>
+
+            <!-- Quote result -->
+            <div id="checkout-result" class="hidden flex-col gap-3 border-t border-slate-200 dark:border-slate-700 pt-4">
+                <div class="text-sm text-slate-500 dark:text-slate-400">Send exactly</div>
+                <div id="checkout-amount" class="text-2xl font-bold break-all"></div>
+                <div id="checkout-amount-usd" class="text-sm text-slate-500 dark:text-slate-400"></div>
+                <div class="text-sm text-slate-500 dark:text-slate-400 mt-2">to</div>
+                <div id="checkout-deposit" class="font-mono text-sm break-all bg-slate-100 dark:bg-slate-900 rounded-xl p-3"></div>
+                <div id="checkout-memo-wrap" class="hidden flex-col gap-1">
+                    <div class="text-sm text-slate-500 dark:text-slate-400">with memo</div>
+                    <div id="checkout-memo" class="font-mono text-sm break-all bg-slate-100 dark:bg-slate-900 rounded-xl p-3"></div>
+                </div>
+                <div id="checkout-status" class="text-sm font-medium"></div>
+                <div id="checkout-verify" class="text-xs text-slate-500 dark:text-slate-400"></div>
+            </div>
+        </div>
+    </div>
+
     <script>
         // --- CENTRAL STATE MANAGEMENT ---
         let amountStr = '0'  // Stores cents as integer (500 = $5.00)
@@ -229,7 +286,7 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
                 alert('Please enter a valid amount.')
                 return
             }
-            alert(`Charging $${total.toFixed(2)} (Base: $${baseAmount.toFixed(2)}, Discount: ${discountPercent}%, Tip: ${tipPercent}%)`)
+            openCheckout(total)
 
             // Reset
             amountStr = '0'
@@ -243,6 +300,332 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
 
         // Initial update
         updateDOM()
+
+        // --- CHECKOUT (dashpoint-api) ---
+        //
+        // Calls the dashpoint-api Worker that is routed at /v1 on this same
+        // host. The request is same-origin, so no CORS preflight is involved
+        // for the site itself: the CORS allowlist exists for the storefront and
+        // any other origin that is added later.
+        //
+        // The flow is:
+        //   1. Read the USD total and the DASH price, and convert to duff.
+        //   2. Ask the API for a quote, which returns a deposit address.
+        //   3. Poll the API for the swap status until it settles.
+        //
+        // The DASH destination address and the customer's refund address are
+        // entered here rather than stored, because /admin is local-only by
+        // design: a published admin page that could redirect payouts would put
+        // merchant funds one stored value away from an attacker.
+
+        const DASH_DECIMALS = 8
+        const DASH_ATOM = Math.pow(10, DASH_DECIMALS)
+
+        const checkoutPanel = document.getElementById('checkout-panel')
+        const checkoutClose = document.getElementById('checkout-close')
+        const checkoutAsset = document.getElementById('checkout-asset') as HTMLSelectElement | null
+        const checkoutRefund = document.getElementById('checkout-refund') as HTMLInputElement | null
+        const checkoutRefundHint = document.getElementById('checkout-refund-hint')
+        const checkoutDestination = document.getElementById('checkout-destination') as HTMLInputElement | null
+        const checkoutQuoteBtn = document.getElementById('checkout-quote') as HTMLButtonElement | null
+        const checkoutError = document.getElementById('checkout-error')
+        const checkoutResult = document.getElementById('checkout-result')
+        const checkoutAmount = document.getElementById('checkout-amount')
+        const checkoutAmountUsd = document.getElementById('checkout-amount-usd')
+        const checkoutDeposit = document.getElementById('checkout-deposit')
+        const checkoutMemoWrap = document.getElementById('checkout-memo-wrap')
+        const checkoutMemo = document.getElementById('checkout-memo')
+        const checkoutStatus = document.getElementById('checkout-status')
+        const checkoutVerify = document.getElementById('checkout-verify')
+
+        // The origin assets, loaded once from the API.
+        let originAssets: Array<{ id: string; label: string; blockchain: string; decimals: number; symbol: string }> = []
+
+        // The active swap, kept so the poller can stop and the UI can restore it.
+        let activeQuote: any = null
+        let pollTimer: number | null = null
+
+        // The dollar total captured when Charge was pressed.
+        let checkoutTotal = 0
+
+        // Remember the merchant's payout and the entered refund addresses between
+        // checkouts on this device. These are convenience only: localStorage is
+        // never the source of truth for a payout, and clearing it is harmless.
+        const CHECKOUT_STORAGE_KEY = 'dashpoint.checkout.v1'
+
+        function loadCheckoutPrefs(): { destinationAddress?: string; refundByAsset?: Record<string, string> } {
+            try {
+                return JSON.parse(localStorage.getItem(CHECKOUT_STORAGE_KEY) || '{}')
+            } catch {
+                return {}
+            }
+        }
+
+        function saveCheckoutPrefs() {
+            try {
+                const prefs = loadCheckoutPrefs()
+                prefs.destinationAddress = checkoutDestination?.value?.trim() || prefs.destinationAddress
+                if (checkoutAsset?.value && checkoutRefund?.value?.trim()) {
+                    prefs.refundByAsset = prefs.refundByAsset || {}
+                    prefs.refundByAsset[checkoutAsset.value] = checkoutRefund.value.trim()
+                }
+                localStorage.setItem(CHECKOUT_STORAGE_KEY, JSON.stringify(prefs))
+            } catch {
+                // Storage can be unavailable (private mode). Not fatal.
+            }
+        }
+
+        // Turn a dollar total into an integer DASH amount in duff.
+        function usdToDuff(usd: number, dashPrice: number): string {
+            if (!dashPrice || dashPrice <= 0) return '0'
+            const dash = usd / dashPrice
+            // Round to the nearest duff. Math.round on a float this size is exact
+            // enough because duff is the smallest unit and the value is far below
+            // the safe integer limit.
+            return Math.round(dash * DASH_ATOM).toString()
+        }
+
+        function showCheckoutError(message: string) {
+            if (!checkoutError) return
+            checkoutError.textContent = message
+            checkoutError.classList.remove('hidden')
+        }
+
+        function clearCheckoutError() {
+            if (!checkoutError) return
+            checkoutError.textContent = ''
+            checkoutError.classList.add('hidden')
+        }
+
+        // Fetch JSON and surface the server's error message on failure.
+        async function apiFetch(path: string, init?: RequestInit): Promise<any> {
+            const response = await fetch(path, init)
+            const text = await response.text()
+            let body: any = null
+            try {
+                body = JSON.parse(text)
+            } catch {
+                body = { error: text }
+            }
+            if (!response.ok) {
+                throw new Error(body?.error || `Request failed with ${response.status}`)
+            }
+            return body
+        }
+
+        // Populate the asset list and the refund-address hint.
+        async function loadAssets() {
+            if (!checkoutAsset) return
+            try {
+                const data = await apiFetch('/v1/assets')
+                originAssets = data.assets || []
+                checkoutAsset.innerHTML = ''
+                for (const asset of originAssets) {
+                    const option = document.createElement('option')
+                    option.value = asset.id
+                    option.textContent = `${asset.label} (${asset.symbol})`
+                    checkoutAsset.appendChild(option)
+                }
+                // Prefer BTC by default when present.
+                const preferred = originAssets.find((a) => a.id === 'btc') || originAssets[0]
+                if (preferred) checkoutAsset.value = preferred.id
+                updateRefundHint()
+            } catch (error: any) {
+                showCheckoutError(`Could not load payment methods: ${error.message}`)
+            }
+        }
+
+        // Describe what address the currently selected chain expects.
+        function updateRefundHint() {
+            if (!checkoutRefundHint || !checkoutAsset) return
+            const asset = originAssets.find((a) => a.id === checkoutAsset!.value)
+            const prefs = loadCheckoutPrefs()
+            const remembered = asset ? prefs.refundByAsset?.[asset.id] : undefined
+            if (checkoutRefund && remembered && !checkoutRefund.value) {
+                checkoutRefund.value = remembered
+            }
+            if (asset) {
+                checkoutRefundHint.textContent = `An address on ${asset.blockchain.toUpperCase()} to return an unspent deposit.`
+            } else {
+                checkoutRefundHint.textContent = ''
+            }
+        }
+
+        function openCheckout(total: number) {
+            checkoutTotal = total
+            clearCheckoutError()
+            if (checkoutResult) {
+                checkoutResult.classList.add('hidden')
+                checkoutResult.classList.remove('flex')
+            }
+            if (checkoutDeposit) checkoutDeposit.textContent = ''
+            if (checkoutAmount) checkoutAmount.textContent = ''
+            if (checkoutAmountUsd) checkoutAmountUsd.textContent = ''
+            if (checkoutStatus) checkoutStatus.textContent = ''
+            if (checkoutVerify) checkoutVerify.textContent = ''
+            if (checkoutMemoWrap) {
+                checkoutMemoWrap.classList.add('hidden')
+                checkoutMemoWrap.classList.remove('flex')
+            }
+
+            // Restore the remembered payout address, if any.
+            const prefs = loadCheckoutPrefs()
+            if (checkoutDestination && !checkoutDestination.value && prefs.destinationAddress) {
+                checkoutDestination.value = prefs.destinationAddress
+            }
+            if (checkoutRefund) checkoutRefund.value = ''
+            updateRefundHint()
+
+            checkoutPanel?.classList.remove('hidden')
+            void loadAssets()
+        }
+
+        function closeCheckout() {
+            checkoutPanel?.classList.add('hidden')
+            stopPolling()
+        }
+
+        function stopPolling() {
+            if (pollTimer !== null) {
+                window.clearTimeout(pollTimer)
+                pollTimer = null
+            }
+        }
+
+        // Request a quote and render the payment instructions.
+        async function requestQuote() {
+            if (!checkoutQuoteBtn || !checkoutAsset) return
+            clearCheckoutError()
+
+            const destinationAddress = checkoutDestination?.value?.trim() || ''
+            const refundAddress = checkoutRefund?.value?.trim() || ''
+
+            if (!destinationAddress) {
+                showCheckoutError('Enter the DASH address that should receive the payment.')
+                return
+            }
+            if (!refundAddress) {
+                showCheckoutError('Enter a refund address for the chain you are paying from.')
+                return
+            }
+
+            checkoutQuoteBtn.disabled = true
+            checkoutQuoteBtn.textContent = 'Checking rate...'
+
+            try {
+                // Price the sale in DASH using the API's own price source.
+                const priceData = await apiFetch('/v1/price')
+                const duff = usdToDuff(checkoutTotal, priceData.price)
+                if (duff === '0') {
+                    throw new Error('The DASH price is unavailable, so the amount cannot be calculated.')
+                }
+
+                checkoutQuoteBtn.textContent = 'Getting quote...'
+
+                const quote = await apiFetch('/v1/quote', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        originAsset: checkoutAsset.value,
+                        amount: duff,
+                        destinationAddress,
+                        refundAddress
+                    })
+                })
+
+                activeQuote = quote
+                saveCheckoutPrefs()
+                renderQuote(quote, priceData.price)
+            } catch (error: any) {
+                showCheckoutError(error.message)
+            } finally {
+                checkoutQuoteBtn.disabled = false
+                checkoutQuoteBtn.textContent = 'Get quote'
+            }
+        }
+
+        // Render the deposit instructions for a quote.
+        function renderQuote(quote: any, dashPrice: number) {
+            if (checkoutResult) {
+                checkoutResult.classList.remove('hidden')
+                checkoutResult.classList.add('flex')
+            }
+            if (checkoutAmount) {
+                checkoutAmount.textContent = `${quote.amountInFormatted}`
+            }
+            if (checkoutAmountUsd) {
+                checkoutAmountUsd.textContent = `≈ $${Number(quote.amountInUsd).toFixed(2)} USD — you receive ${Number(quote.amountOutFormatted).toFixed(8)} DASH ($${(Number(quote.amountOut) / DASH_ATOM * dashPrice).toFixed(2)})`
+            }
+            if (checkoutDeposit) {
+                checkoutDeposit.textContent = quote.depositAddress
+            }
+            if (quote.depositMemo) {
+                if (checkoutMemo) checkoutMemo.textContent = quote.depositMemo
+                if (checkoutMemoWrap) {
+                    checkoutMemoWrap.classList.remove('hidden')
+                    checkoutMemoWrap.classList.add('flex')
+                }
+            }
+            if (checkoutVerify) {
+                checkoutVerify.textContent = quote.verified
+                    ? 'Quote signature verified.'
+                    : 'Quote signature NOT verified.'
+            }
+
+            // Begin watching for the deposit.
+            startPolling(quote.depositAddress, quote.depositMemo)
+        }
+
+        // Poll the swap status until it reaches a terminal state.
+        function startPolling(depositAddress: string, depositMemo?: string) {
+            stopPolling()
+            const terminal = ['SUCCESS', 'REFUNDED', 'FAILED']
+
+            const tick = async () => {
+                try {
+                    const params = new URLSearchParams({ depositAddress })
+                    if (depositMemo) params.set('depositMemo', depositMemo)
+                    const state = await apiFetch(`/v1/status?${params.toString()}`)
+                    if (checkoutStatus) {
+                        checkoutStatus.textContent = statusLabel(state.status)
+                    }
+                    if (terminal.includes(state.status)) {
+                        stopPolling()
+                        return
+                    }
+                } catch (error: any) {
+                    // A status lookup failure is not fatal: keep the payment
+                    // instructions on screen and try again.
+                    if (checkoutStatus) checkoutStatus.textContent = `Status unavailable: ${error.message}`
+                }
+                pollTimer = window.setTimeout(tick, 10000)
+            }
+
+            tick()
+        }
+
+        // Human wording for a swap state.
+        function statusLabel(status: string): string {
+            switch (status) {
+                case 'KNOWN_DEPOSIT_TX': return 'Deposit detected, waiting for confirmation...'
+                case 'PENDING_DEPOSIT': return 'Waiting for your payment...'
+                case 'INCOMPLETE_DEPOSIT': return 'Deposit received is below the required amount.'
+                case 'PROCESSING': return 'Payment received. Sending DASH...'
+                case 'SUCCESS': return 'Payment complete.'
+                case 'REFUNDED': return 'The swap was refunded to your refund address.'
+                case 'FAILED': return 'The swap failed. Please contact the merchant.'
+                default: return status
+            }
+        }
+
+        checkoutQuoteBtn?.addEventListener('click', () => { void requestQuote() })
+        checkoutClose?.addEventListener('click', closeCheckout)
+        checkoutAsset?.addEventListener('change', () => {
+            if (checkoutRefund) checkoutRefund.value = ''
+            updateRefundHint()
+        })
+        checkoutDestination?.addEventListener('change', saveCheckoutPrefs)
+        checkoutRefund?.addEventListener('change', saveCheckoutPrefs)
     </script>
 </body>
 </html>

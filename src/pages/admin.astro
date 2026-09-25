@@ -1,0 +1,286 @@
+---
+// src/pages/admin.astro
+
+import '../styles/global.css'
+import { DEFAULT_CONFIG } from '../lib/config'
+
+// Server-rendered defaults. Live values are hydrated from localStorage by the
+// inline script below so the page works on a static host.
+const defaults = DEFAULT_CONFIG
+---
+
+<!DOCTYPE html>
+<html lang="en" class="h-screen">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Admin — DashPoint POS</title>
+    <meta name="robots" content="noindex, nofollow" />
+</head>
+<body class="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 text-slate-900 dark:text-slate-100 flex flex-col">
+    <div id="admin-app" class="flex flex-col h-full min-h-screen">
+        <!-- Header -->
+        <header class="bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm border-b border-slate-200 dark:border-slate-700 px-6 py-4 shadow-sm sticky top-0 z-50">
+            <div class="max-w-2xl mx-auto flex items-center justify-between gap-4">
+                <h1 class="text-2xl font-bold">Store Admin</h1>
+                <a href="/" class="text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline whitespace-nowrap">
+                    &larr; Back to POS
+                </a>
+            </div>
+        </header>
+
+        <main class="flex-1 px-6 py-8">
+            <form id="admin-form" class="max-w-2xl mx-auto flex flex-col gap-6" novalidate>
+                <!-- Store identity -->
+                <section class="bg-white/90 dark:bg-slate-800/90 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-6 flex flex-col gap-4">
+                    <h2 class="text-lg font-semibold">Store</h2>
+
+                    <div class="flex flex-col gap-1">
+                        <label for="storeName" class="text-sm font-medium text-slate-600 dark:text-slate-300">Store name</label>
+                        <input id="storeName" name="storeName" type="text" maxlength="64"
+                            value={defaults.storeName}
+                            class="rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500" />
+                        <p class="text-xs text-slate-500 dark:text-slate-400">Shown in the POS header and footer.</p>
+                    </div>
+
+                    <div class="flex flex-col gap-1">
+                        <label for="currency" class="text-sm font-medium text-slate-600 dark:text-slate-300">Display currency</label>
+                        <input id="currency" name="currency" type="text" maxlength="8"
+                            value={defaults.currency}
+                            class="rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500" />
+                        <p class="text-xs text-slate-500 dark:text-slate-400">Label only. POS amounts are USD-denominated in this build.</p>
+                    </div>
+
+                    <div class="flex flex-col gap-1">
+                        <label for="tipPresets" class="text-sm font-medium text-slate-600 dark:text-slate-300">Tip presets (%)</label>
+                        <input id="tipPresets" name="tipPresets" type="text" maxlength="48"
+                            value={defaults.tipPresets.join(', ')}
+                            class="rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500" />
+                        <p class="text-xs text-slate-500 dark:text-slate-400">Comma-separated whole numbers between 1 and 100.</p>
+                    </div>
+                </section>
+
+                <!-- NEAR Intents payouts -->
+                <section class="bg-white/90 dark:bg-slate-800/90 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-6 flex flex-col gap-4">
+                    <h2 class="text-lg font-semibold">NEAR Intents payouts</h2>
+
+                    <div class="flex flex-col gap-1">
+                        <label for="destinationAddress" class="text-sm font-medium text-slate-600 dark:text-slate-300">Destination DASH address</label>
+                        <input id="destinationAddress" name="destinationAddress" type="text" maxlength="48" spellcheck="false" autocomplete="off"
+                            placeholder="X…"
+                            value={defaults.destinationAddress}
+                            class="rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-4 py-3 font-mono text-sm outline-none focus:ring-2 focus:ring-blue-500" />
+                        <p id="destinationAddress-status" class="text-xs text-slate-500 dark:text-slate-400">Validated as a Dash mainnet P2PKH address.</p>
+                    </div>
+
+                    <div class="flex flex-col gap-1">
+                        <label for="refundAddress" class="text-sm font-medium text-slate-600 dark:text-slate-300">Refund DASH address</label>
+                        <input id="refundAddress" name="refundAddress" type="text" maxlength="48" spellcheck="false" autocomplete="off"
+                            placeholder="X…"
+                            value={defaults.refundAddress}
+                            class="rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-4 py-3 font-mono text-sm outline-none focus:ring-2 focus:ring-blue-500" />
+                        <p id="refundAddress-status" class="text-xs text-slate-500 dark:text-slate-400">Where unfulfilled swaps are automatically returned.</p>
+                    </div>
+
+                    <div class="flex flex-col gap-1">
+                        <label for="apiKey" class="text-sm font-medium text-slate-600 dark:text-slate-300">1Click partner JWT (optional)</label>
+                        <input id="apiKey" name="apiKey" type="password" maxlength="512" spellcheck="false" autocomplete="off"
+                            placeholder="Leave empty for unauthenticated quotes"
+                            value={defaults.apiKey}
+                            class="rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-4 py-3 font-mono text-sm outline-none focus:ring-2 focus:ring-blue-500" />
+                        <p class="text-xs text-slate-500 dark:text-slate-400">Authenticated quotes cost 0.20% instead of 0.25%. A browser-held key is visible to users; move this to a server proxy before launch.</p>
+                    </div>
+                </section>
+
+                <!-- Actions -->
+                <div class="flex flex-col gap-3">
+                    <div class="flex items-center gap-3">
+                        <button id="save-btn" type="submit"
+                            class="flex-1 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-bold py-4 px-6 rounded-2xl text-lg shadow-xl active:translate-y-0.5 transition-all duration-200">
+                            Save settings
+                        </button>
+                        <button id="reset-btn" type="button"
+                            class="py-4 px-6 rounded-2xl font-semibold border-2 border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-all duration-200">
+                            Reset
+                        </button>
+                    </div>
+                    <p id="status" role="status" aria-live="polite"
+                        class="text-sm text-center min-h-[1.25rem] text-slate-500 dark:text-slate-400"></p>
+                </div>
+            </form>
+        </main>
+
+        <!-- Footer -->
+        <footer class="bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm border-t border-slate-200 dark:border-slate-700 px-6 py-4 mt-auto">
+            <div class="text-center text-sm text-slate-500 dark:text-slate-400">
+                Settings are stored in this browser only.
+            </div>
+        </footer>
+    </div>
+
+    <script>
+        import { DEFAULT_CONFIG, loadConfig, saveConfig, clearConfig, isValidDashAddress, type PosConfig } from '../lib/config'
+
+        const form = document.getElementById('admin-form') as HTMLFormElement
+        const statusEl = document.getElementById('status')!
+        const saveBtn = document.getElementById('save-btn') as HTMLButtonElement
+        const resetBtn = document.getElementById('reset-btn') as HTMLButtonElement
+
+        const fields: Array<keyof PosConfig> = [
+            'storeName',
+            'currency',
+            'tipPresets',
+            'destinationAddress',
+            'refundAddress',
+            'apiKey'
+        ]
+
+        function inputFor(name: keyof PosConfig): HTMLInputElement {
+            return document.getElementById(name) as HTMLInputElement
+        }
+
+        function setStatus(message: string, tone: 'ok' | 'error' | 'muted' = 'muted') {
+            statusEl.textContent = message
+            statusEl.className = 'text-sm text-center min-h-[1.25rem] ' + (
+                tone === 'ok'
+                    ? 'text-green-600 dark:text-green-400'
+                    : tone === 'error'
+                        ? 'text-red-600 dark:text-red-400'
+                        : 'text-slate-500 dark:text-slate-400'
+            )
+        }
+
+        function setAddressStatus(name: 'destinationAddress' | 'refundAddress', message: string, tone: 'ok' | 'error' | 'muted') {
+            const el = document.getElementById(name + '-status')!
+            el.textContent = message
+            el.className = 'text-xs ' + (
+                tone === 'ok'
+                    ? 'text-green-600 dark:text-green-400'
+                    : tone === 'error'
+                        ? 'text-red-600 dark:text-red-400'
+                        : 'text-slate-500 dark:text-slate-400'
+            )
+        }
+
+        function fillForm(config: PosConfig) {
+            inputFor('storeName').value = config.storeName
+            inputFor('currency').value = config.currency
+            inputFor('tipPresets').value = config.tipPresets.join(', ')
+            inputFor('destinationAddress').value = config.destinationAddress
+            inputFor('refundAddress').value = config.refundAddress
+            inputFor('apiKey').value = config.apiKey
+        }
+
+        function parseTipPresets(raw: string): number[] | null {
+            const trimmed = raw.trim()
+            if (!trimmed) return null
+
+            const parts = trimmed.split(',').map(part => part.trim()).filter(Boolean)
+            const numbers: number[] = []
+
+            for (const part of parts) {
+                if (!/^\d+$/.test(part)) return null
+                const value = Number(part)
+                if (value < 1 || value > 100) return null
+                numbers.push(value)
+            }
+
+            return numbers.length ? numbers : null
+        }
+
+        function readForm(): PosConfig | null {
+            const tipPresets = parseTipPresets(inputFor('tipPresets').value)
+            if (!tipPresets) {
+                setStatus('Tip presets must be comma-separated whole numbers between 1 and 100.', 'error')
+                return null
+            }
+
+            return {
+                storeName: inputFor('storeName').value.trim() || DEFAULT_CONFIG.storeName,
+                currency: inputFor('currency').value.trim().toUpperCase() || DEFAULT_CONFIG.currency,
+                tipPresets,
+                destinationAddress: inputFor('destinationAddress').value.trim(),
+                refundAddress: inputFor('refundAddress').value.trim(),
+                apiKey: inputFor('apiKey').value.trim()
+            }
+        }
+
+        async function validateAddresses(config: PosConfig): Promise<boolean> {
+            let valid = true
+
+            for (const name of ['destinationAddress', 'refundAddress'] as const) {
+                const value = config[name]
+
+                if (!value) {
+                    setAddressStatus(name, name === 'destinationAddress'
+                        ? 'Validated as a Dash mainnet P2PKH address.'
+                        : 'Where unfulfilled swaps are automatically returned.', 'muted')
+                    continue
+                }
+
+                const ok = await isValidDashAddress(value)
+                valid = valid && ok
+                setAddressStatus(name, ok
+                    ? 'Valid Dash mainnet address.'
+                    : 'Not a valid Dash mainnet P2PKH address.', ok ? 'ok' : 'error')
+            }
+
+            return valid
+        }
+
+        form.addEventListener('submit', async (event) => {
+            event.preventDefault()
+
+            const config = readForm()
+            if (!config) return
+
+            const addressesValid = await validateAddresses(config)
+            if (!addressesValid) {
+                setStatus('Fix the highlighted address before saving.', 'error')
+                return
+            }
+
+            if (!saveConfig(config)) {
+                setStatus('Could not save: browser storage is unavailable.', 'error')
+                return
+            }
+
+            fillForm(config)
+            setStatus('Settings saved.', 'ok')
+        })
+
+        resetBtn.addEventListener('click', () => {
+            clearConfig()
+            fillForm({ ...DEFAULT_CONFIG })
+            setAddressStatus('destinationAddress', 'Validated as a Dash mainnet P2PKH address.', 'muted')
+            setAddressStatus('refundAddress', 'Where unfulfilled swaps are automatically returned.', 'muted')
+            setStatus('Settings reset to defaults.', 'ok')
+        })
+
+        // Live re-validation as the operator types.
+        for (const name of ['destinationAddress', 'refundAddress'] as const) {
+            const input = inputFor(name)
+            let timer: number | undefined
+            input.addEventListener('input', () => {
+                if (timer) window.clearTimeout(timer)
+                timer = window.setTimeout(async () => {
+                    const value = input.value.trim()
+                    if (!value) {
+                        setAddressStatus(name, name === 'destinationAddress'
+                            ? 'Validated as a Dash mainnet P2PKH address.'
+                            : 'Where unfulfilled swaps are automatically returned.', 'muted')
+                        return
+                    }
+                    const ok = await isValidDashAddress(value)
+                    setAddressStatus(name, ok
+                        ? 'Valid Dash mainnet address.'
+                        : 'Not a valid Dash mainnet P2PKH address.', ok ? 'ok' : 'error')
+                }, 250)
+            })
+        }
+
+        // Hydrate from localStorage on load.
+        fillForm(loadConfig())
+    </script>
+</body>
+</html>
