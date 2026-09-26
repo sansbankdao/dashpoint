@@ -124,9 +124,10 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
                 </div>
             </div>
 
-            <!-- Destination address is NOT shown. The payout target is fixed by
-                 MERCHANT_DASH_ADDRESS on the API Worker, so there is nothing for
-                 the customer or clerk to see or mistype here. -->
+            <!-- Destination address is NOT shown. The payout target is the
+                 merchant's own address, saved on /admin for this device and
+                 sent with the quote, so there is nothing for the customer or
+                 clerk to see or mistype here. -->
 
             <!-- Action / status -->
             <button id="checkout-quote" type="button" class="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 disabled:from-slate-400 disabled:to-slate-500 text-white font-bold py-4 px-6 rounded-2xl shadow-lg disabled:cursor-not-allowed">
@@ -153,10 +154,9 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
                 Setup prompt.
 
                 Shown instead of the payment instructions when the terminal has
-                no DASH payout address: neither the /admin setting nor the API's
-                MERCHANT_DASH_ADDRESS is present. Without one there is nowhere to
-                deliver the funds, so the sale must not be able to start. The
-                customer never sees a quote in this state.
+                no DASH payout address saved on /admin for this device. Without
+                one there is nowhere to deliver the funds, so the sale must not
+                be able to start. The customer never sees a quote in this state.
             -->
             <div id="checkout-setup" class="hidden flex-col gap-3 rounded-xl border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/40 p-4">
                 <h3 class="text-sm font-semibold text-amber-900 dark:text-amber-200">This terminal is not ready to take payments</h3>
@@ -470,8 +470,8 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
         // The DASH payout address is read from the settings saved on /admin for
         // this device. It is never shown, and never typed at the counter: it is
         // passed to the API so the destination is the merchant's own address.
-        // The API's MERCHANT_DASH_ADDRESS is the fallback when this device has
-        // no setting, so a sale is still payable with nothing configured.
+        // The API holds no address of its own, so a terminal with no setting
+        // here cannot take a payment and is prompted to set one.
         //
         // Refunds are decided by the API, not by the browser, so no
         // customer-facing refund address is collected.
@@ -574,9 +574,9 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
         /*
          * Whether the terminal can deliver funds at all.
          *
-         * Null until GET /v1/health answers. The setup prompt is shown for an
-         * explicit false; an unreachable health check leaves it null and the
-         * normal error path reports the failure instead of blaming setup.
+         * False when this device has no payout address saved. That is the only
+         * source for the address, so there is no server state to wait on and
+         * the setup prompt is driven entirely from the local check.
          */
         let terminalReady: boolean | null = null
 
@@ -589,21 +589,15 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
         /*
          * Whether the terminal can deliver funds.
          *
-         * Two places can supply the payout address: the setting saved on /admin
-         * for this device, and MERCHANT_DASH_ADDRESS on the API. Either one
-         * makes the terminal payable, so the readiness check must accept both.
-         * Consulting only the server would report a terminal as unconfigured
-         * after it had been configured locally.
+         * The payout address is supplied by the merchant on every quote and
+         * held nowhere else, so readiness is exactly whether this device has
+         * one. The check is local and synchronous in effect: asking the server
+         * would be asking a Worker that by design does not know the answer, and
+         * a server-wide "ready" would mask a terminal that had none set.
          */
         async function refreshTerminalReadiness() {
             const local = storedPayoutAddress()
-            try {
-                const health = await apiFetch('/v1/health')
-                terminalReady = Boolean(health?.terminalReady) || Boolean(local)
-            } catch {
-                /* A health failure is reported by the quote attempt itself. */
-                terminalReady = local ? true : null
-            }
+            terminalReady = local ? true : false
             setSetupPromptVisible(terminalReady === false)
             syncQuoteButton()
         }
@@ -957,10 +951,11 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
                 checkoutQuoteBtn.textContent = 'Getting total...'
 
                 /*
-                 * The destination comes from the settings saved on /admin for
-                 * this device. It is not shown and cannot be edited here. When
-                 * this device has no setting the field is omitted so the API
-                 * applies MERCHANT_DASH_ADDRESS instead of an empty string.
+                 * The destination is required: the API holds no payout address
+                 * of its own, so it must arrive with the request. It comes from
+                 * the settings saved on /admin for this device, is not shown,
+                 * and cannot be edited here. The readiness check above means
+                 * this value is present by the time a quote is attempted.
                  */
                 const destinationAddress = storedPayoutAddress()
                 const quote = await apiFetch('/v1/quote', {
@@ -969,7 +964,7 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
                     body: JSON.stringify({
                         originAsset: checkoutAssetId,
                         amount: duff,
-                        ...(destinationAddress ? { destinationAddress } : {})
+                        destinationAddress
                     })
                 })
 
@@ -1055,14 +1050,21 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
             if (!address) return
             /*
              * 1Click reports short chain codes (btc, eth, sol, base, arb,
-             * op), so the map is keyed on those. The EVM chains share the
-             * ethereum scheme because their addresses are the same shape.
+             * op, avax, pol, tron), so the map is keyed on those. Every EVM
+             * chain shares the ethereum scheme because the address shape is
+             * identical. Listing each one keeps a payable route (usdc-avax is
+             * at the payment floor) from falling back to a bare address, which
+             * a wallet cannot route to a chain.
+             *
+             * Tron has no widely honoured payment-URI scheme, so it stays on
+             * the bare-address fallback deliberately rather than by omission.
              */
             const chain = String(quote.originBlockchain || '').toLowerCase()
             const schemes: Record<string, string> = {
                 btc: 'bitcoin', ltc: 'litecoin', doge: 'dogecoin',
                 sol: 'solana', xrp: 'xrp',
-                eth: 'ethereum', base: 'ethereum', arb: 'ethereum', op: 'ethereum'
+                eth: 'ethereum', base: 'ethereum', arb: 'ethereum',
+                op: 'ethereum', avax: 'ethereum', pol: 'ethereum'
             }
             const scheme = schemes[chain]
             const uri = scheme

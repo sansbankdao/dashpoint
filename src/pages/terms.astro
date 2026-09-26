@@ -1,0 +1,129 @@
+---
+// src/pages/terms.astro
+
+import '../styles/global.css'
+---
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Terms of Use — DashPoint</title>
+    <meta name="description" content="Terms of use for the DashPoint point-of-sale software." />
+    <meta name="robots" content="index, follow" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+</head>
+<body class="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 text-slate-900 dark:text-slate-100">
+    <main class="mx-auto max-w-3xl px-6 py-12 flex flex-col gap-8">
+
+        <header class="flex flex-col gap-2">
+            <a href="/" class="text-sm text-blue-600 dark:text-blue-400">&larr; DashPoint</a>
+            <h1 class="text-3xl font-bold">Terms of Use</h1>
+            <p class="text-sm text-slate-500 dark:text-slate-400">
+                These terms cover the DashPoint point-of-sale software and the DashPoint API. By
+                taking a payment with DashPoint, or by paying through a terminal that runs it, you
+                accept them. If you do not accept them, do not use the software.
+            </p>
+        </header>
+
+        <section class="flex flex-col gap-3">
+            <h2 class="text-xl font-semibold">1. What DashPoint is</h2>
+            <p class="text-sm text-slate-600 dark:text-slate-300">
+                DashPoint is open-source software that a merchant runs to accept cryptocurrency
+                payments and receive DASH. It is not a bank, a money transmitter, an exchange, a
+                broker, or a custodian. It does not hold your funds at any point, and it cannot
+                reverse, freeze, or recover a payment once it has settled.
+            </p>
+        </section>
+
+        <section class="flex flex-col gap-3">
+            <h2 class="text-xl font-semibold">2. The merchant is the seller</h2>
+            <p class="text-sm text-slate-600 dark:text-slate-300">
+                The sale is between you and the merchant operating the terminal. The merchant sets the
+                prices, the DASH payout address that receives the funds, and any refund policy. The
+                DashPoint project is not a party to the sale and is not responsible for the goods,
+                services, or conduct of any merchant.
+            </p>
+        </section>
+
+        <section class="flex flex-col gap-3">
+            <h2 class="text-xl font-semibold">3. Conversion is performed by 1Click</h2>
+            <p class="text-sm text-slate-600 dark:text-slate-300">
+                When you pay in a cryptocurrency other than DASH, the conversion into DASH is carried
+                out by <strong>1Click</strong>, a third-party swap service operated at
+                <code class="font-mono text-xs">1click.chaindefuser.com</code>. DashPoint submits the
+                request to it but does not operate it and does not control it. Rates, availability, and
+                the minimum amount accepted are set by that service, and its own terms apply to the
+                swap itself.
+            </p>
+        </section>
+
+        <section class="flex flex-col gap-3">
+            <h2 class="text-xl font-semibold">4. Amounts, rates, and minimums</h2>
+            <p class="text-sm text-slate-600 dark:text-slate-300">
+                The DASH amount you must send is calculated from a rate at the moment it is quoted. A
+                rate is not a promise: cryptocurrency prices move, and a quote is valid only for the
+                short period stated with it. A sale below the minimum accepted by the swap service
+                cannot proceed; the minimum is shown before you pay. If you send less than the stated
+                amount, the payment may fail, be delayed, or be refunded rather than completed, and
+                network fees may be deducted from any refund.
+            </p>
+        </section>
+
+        <section class="flex flex-col gap-3">
+            <h2 class="text-xl font-semibold">5. Refunds</h2>
+            <p class="text-sm text-slate-600 dark:text-slate-300">
+                A swap that cannot be completed is refunded by the swap service to the refund target
+                recorded with the request. Unless you supply an address on your own chain, the refund
+                is issued to a NEAR Intents account held by the operator, from which it must be
+                withdrawn. Refunds are not instant and are not guaranteed against a loss in value
+                between payment and refund.
+            </p>
+        </section>
+
+        <section class="flex flex-col gap-3">
+            <h2 class="text-xl font-semibold">6. Your responsibilities</h2>
+            <ul class="text-sm text-slate-600 dark:text-slate-300 list-disc pl-5 flex flex-col gap-1">
+                <li>Send only the asset shown, using the deposit address and amount shown for that payment.</li>
+                <li>Verify the destination address shown matches what you intend before sending.</li>
+                <li>Do not use the software where doing so would break the law that applies to you.</li>
+                <li>Keep your own wallet credentials safe. DashPoint never has access to them.</li>
+            </ul>
+        </section>
+
+        <section class="flex flex-col gap-3">
+            <h2 class="text-xl font-semibold">7. No warranty</h2>
+            <p class="text-sm text-slate-600 dark:text-slate-300">
+                The software is provided "as is", without warranty of any kind, whether express or
+                implied, including but not limited to the warranties of merchantability, fitness for a
+                particular purpose, and non-infringement. It depends on third-party networks and
+                services that may be slow, unavailable, or faulty. You use it at your own risk.
+            </p>
+        </section>
+
+        <section class="flex flex-col gap-3">
+            <h2 class="text-xl font-semibold">8. Limitation of liability</h2>
+            <p class="text-sm text-slate-600 dark:text-slate-300">
+                To the fullest extent permitted by law, the authors and contributors of DashPoint are
+                not liable for any direct, indirect, incidental, special, consequential, or exemplary
+                damages, including loss of funds, loss of profit, or loss of data, arising from the use
+                of or inability to use the software, or from any transaction made through it.
+            </p>
+        </section>
+
+        <section class="flex flex-col gap-3">
+            <h2 class="text-xl font-semibold">9. Changes</h2>
+            <p class="text-sm text-slate-600 dark:text-slate-300">
+                These terms may change as the software changes. The version in effect is the one
+                published on this page at the time you use the software.
+            </p>
+        </section>
+
+        <footer class="pt-4 border-t border-slate-200 dark:border-slate-700 text-sm text-slate-500 dark:text-slate-400">
+            <p>See also the <a href="/privacy" class="text-blue-600 dark:text-blue-400">Privacy</a> page.</p>
+        </footer>
+
+    </main>
+</body>
+</html>

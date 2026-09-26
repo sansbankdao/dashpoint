@@ -194,9 +194,16 @@ on this zone and on `dashpoint.store`, in front of the static Pages site.
 - **The partner JWT is never in this repository or in the browser.** It is a
   Cloudflare Secrets Store binding on the Worker. `/admin` shows only a boolean
   read from `GET /v1/health`. Do not add a field that accepts it.
-- The authoritative payout address is `MERCHANT_DASH_ADDRESS` on the Worker,
-  set with `wrangler secret put`. A quote that carries no `destinationAddress`
-  falls back to it, and is refused with a 400 if it is unset.
+- **The payout address is supplied by the merchant, never by this project.**
+  The API holds no address of its own: `destinationAddress` is **required** on
+  every quote, is validated as a Dash mainnet address before any upstream call,
+  and is refused with a 400 when absent or malformed. The only place it is
+  stored is the device-local `/admin` setting. There is deliberately no
+  server-side variable for it, so one deployment cannot become the payout
+  target for every terminal using the API.
+- **There is no `terminalReady` field on `GET /v1/health`.** The Worker cannot
+  know whether a given terminal has an address, so it does not claim to. The POS
+  drives the setup prompt from its own local setting alone.
 - Refunds default to NEAR Intents to `REFUND_NEAR_ACCOUNT`
   (`sansbank-dao.near`); 1Click requires `refundTo` to be non-empty for every
   quote. A quote that carries a `refundAddress` refunds on the origin chain
@@ -300,5 +307,10 @@ Do not repeat the legacy handoff's stale claims. Specifically:
 - Wrong: `quoteId` on a quote — track by `depositAddress`.
 - Wrong: "~5 RPS" — observed limit is 20 RPS unauthenticated.
 - Wrong: `duwei` for DASH — the DASH base unit is the **duff** (1 DASH = 1e8 duff).
-- Unverified: the Dash blog post "Dash Is Live on NEAR Intents" (URL not located);
-  verify before citing. DASH support itself is confirmed live via `GET /v0/tokens`.
+- Do not cite the Dash blog post "Dash Is Live on NEAR Intents". Its URL could
+  never be located, so it must not be restated. DASH support is confirmed live
+  by `GET /v0/tokens` and by real quotes, which is the evidence to cite instead.
+- Do not cite a Maya Protocol status or a "Dash on Maya since 2023" date. No
+  source was ever retrieved for either, and `midgard.ninerealms.com` no longer
+  resolves (`midgard.mayachain.info` returns 404), so the claim is neither
+  verifiable nor needed: the integration runs on 1Click.

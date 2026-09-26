@@ -113,9 +113,10 @@ const defaults = DEFAULT_CONFIG
                             class="rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-4 py-3 font-mono text-sm outline-none focus:ring-2 focus:ring-blue-500" />
                         <p id="destinationAddress-status" class="text-xs text-slate-500 dark:text-slate-400">Validated as a Dash mainnet P2PKH address.</p>
                         <p class="text-xs text-slate-500 dark:text-slate-400">
-                            Used for sales taken on this browser. The address that receives funds for the deployed site is
-                            <code class="font-mono">MERCHANT_DASH_ADDRESS</code> on the API Worker, set with
-                            <code class="font-mono">wrangler secret put</code>. It is deliberately not editable here.
+                            Used for sales taken on this browser. This is the only place the payout address is
+                            held: the API stores no address of its own, so a terminal with no value saved here
+                            cannot take a payment. The address is sent with each sale and is never shown to the
+                            customer.
                         </p>
                     </div>
 

@@ -31,7 +31,7 @@ export interface PosConfig {
     apiKey: string
     /** Display currency label. The POS prices are currently USD-denominated. */
     currency: string
-    /** Tip percentages offered by TipSelector. */
+    /** Tip percentages offered by the tip tab. */
     tipPresets: number[]
 }
 
