@@ -1,6 +1,9 @@
 # build output
 dist/
 
+# wrangler local dev state (miniflare KV/R2/D1/cache + deploy config)
+.wrangler/
+
 # generated types
 .astro/
 

@@ -23,7 +23,8 @@ tsconfig.json             extends astro/tsconfigs/strict
 .prettierrc               Prettier: no semicolons, single quotes, astro + tailwind plugins
 pnpm-workspace.yaml       allowBuilds for @tailwindcss/oxide, esbuild, sharp
 public/favicon.svg        site icon
-src/pages/index.astro     page shell; imports products + <Storefront />
+src/pages/index.astro     landing page; features the demo in an inline <iframe>
+src/pages/demo.astro      the storefront; imports products + <Storefront />
 src/layouts/Layout.astro  HTML shell, meta/OG/canonical, imports global.css
 src/components/
   Storefront.astro        header, product grid, cart list, footer; DOM wiring only
@@ -44,6 +45,13 @@ each static Pages site.** The Worker source is the sibling repo
 `../dashpoint-api` (`github.com/sansbankdao/dashpoint-api`, private).
 
 - **This storefront makes no `/v1` calls today.** The cart is in-memory and the
+  Pay button only shows an `alert()`; nothing in the repo depends on `/v1`.
+  `demo.dashpoint.store` is already listed in the Worker's `CORS_ORIGIN`, but
+  the Worker's `routes` in `../dashpoint-api/packages/api/wrangler.jsonc` cover
+  only `dashpoint.store/v1` and `dashpoint.store/v1/*`, not the `demo` host.
+- **URL map:** `/` is the landing page, `/demo` is the storefront. Both build
+  from this one repo, so the demo cannot drift from what the landing page
+  advertises. Do not fork the storefront into a second repo.
   Pay button only shows an `alert()` (see `src/components/Storefront.astro`).
 - Any change to `/v1` behavior affects **both** `dashpoint.sale` (the POS) and
   `dashpoint.store` (this store). A change made for the POS is a change to this

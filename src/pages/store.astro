@@ -1,0 +1,52 @@
+---
+// src/pages/store.astro
+//
+// The hosted storefront for a single Dash Platform store, served from
+//
+//   <USERNAME>.dashpoint.store
+//
+// This page only decides WHETHER the requested host names a well-formed store.
+// It does NOT yet fetch the store document from Drive — resolution goes
+// username -> DPNS -> identity id -> the identity's `store` document, and the
+// endpoint that performs it lives in the `dashpoint-api` Worker. Until that is
+// wired, a well-formed host renders the demo storefront so the routing is
+// visible; a malformed host renders "Store Not Found".
+//
+// Astro is a static build, so `Astro.request` carries the real request Host
+// header only when this page is server-rendered. `prerender = false` is what
+// makes that possible; without it the header is empty at build time and every
+// host would render "Store Not Found". The hostname is read here, and the SAME
+// functions are unit-tested in src/lib/store-host.test.ts.
+
+export const prerender = false
+
+import Layout from '../layouts/Layout.astro'
+import Storefront from '../components/Storefront.astro'
+import StoreNotFound from '../components/StoreNotFound.astro'
+import { products } from '../data/products'
+import { storeNameFromHostname, isValidStoreName, normalizeStoreName } from '../lib/store-host'
+
+const hostname = Astro.request.headers.get('host') ?? ''
+const candidate = storeNameFromHostname(hostname)
+const isValid = candidate !== null && isValidStoreName(candidate)
+
+/* The value a DPNS lookup compares against. Computed here so the reason text
+ * can show the normalized form the network will actually use. */
+const normalized = candidate === null ? null : normalizeStoreName(candidate)
+---
+
+{isValid ? (
+    <Layout title="Store — Homemade Crypto" description="A Homemade Crypto storefront on Dash Platform.">
+        <Storefront products={products} />
+    </Layout>
+) : (
+    <Layout title="Store Not Found" description="No Dash Platform store exists at this address.">
+        <StoreNotFound
+            storeId={candidate}
+            reason={candidate === null
+                ? 'This address is not a Dash Platform store.'
+                : `“${candidate}” is not a valid Dash Platform username (3–63 letters, digits or hyphens, no leading or trailing hyphen).`}
+            normalized={normalized}
+        />
+    </Layout>
+)}
