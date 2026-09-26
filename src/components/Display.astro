@@ -2,7 +2,13 @@
 // src/components/Display.astro
 ---
 
-<div class="w-full flex flex-col items-center justify-center min-h-[40vh] p-4">
+<!--
+    The mobile floor is zero on purpose. A 36vh minimum held the amount panel
+    at 204px on a 568px-tall phone, which is taller than its contents, and it
+    competed with the keypad for the single screen the terminal must occupy.
+    Wide screens keep the taller panel; they have the room.
+-->
+<div class="w-full flex flex-col items-center justify-center min-h-0 sm:min-h-[40vh] md:min-h-0 p-2 sm:p-4">
     <!-- Currency -->
     <div class="text-slate-500 dark:text-slate-400 font-semibold text-lg mb-2" id="Currency">
         USD
@@ -10,7 +16,7 @@
 
     <!-- Main Amount -->
     <div id="Amount"
-         class="font-black text-center mb-2 leading-tight transition-all duration-200 text-5xl md:text-6xl lg:text-7xl tracking-tightest"
+         class="font-black text-center mb-2 leading-tight transition-all duration-200 text-4xl sm:text-5xl md:text-6xl lg:text-7xl tracking-tightest"
          style="line-height: 1;">
         $0.00
     </div>
