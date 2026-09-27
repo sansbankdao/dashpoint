@@ -1,0 +1,26 @@
+// wrangler.jsonc
+//
+// Configuration for the Cloudflare Worker that the @astrojs/cloudflare adapter
+// builds from this Astro project. The adapter merges this file into the
+// generated `dist/server/wrangler.json`.
+//
+// `name` must match the Worker the store is deployed as, so a deploy updates the
+// existing Worker rather than creating a new one.
+//
+// WHY THERE IS NO `assets` BLOCK HERE
+// An earlier attempt to route `<username>.dashpoint.store/` to the storefront
+// set `assets.run_worker_first: true`, on the theory that Cloudflare was serving
+// the prerendered `/` before the Worker ran. That theory was wrong: the
+// short-circuit is INSIDE the Astro entry (`entry.mjs` calls `matchStaticAsset`
+// before `app.match`), so `run_worker_first` did not change the outcome and only
+// pushed every static asset through the Worker for nothing.
+//
+// The real fix is `export const prerender = false` in `src/pages/index.astro`:
+// with no `dist/client/index.html`, `/` has no static file to short-circuit on,
+// so it matches a real route and `src/middleware.ts` runs and can rewrite a
+// store subdomain to `/store`. Static assets (`/_astro/*`, `/demo`, ...) are
+// still served directly by the edge.
+{
+    "name": "dashpoint-store",
+    "compatibility_date": "2025-01-29"
+}

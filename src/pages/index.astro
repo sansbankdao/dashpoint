@@ -1,5 +1,19 @@
 ---
 // src/pages/index.astro
+//
+// The apex landing page. This is deliberately NOT prerendered.
+//
+// Astro's Cloudflare entry serves a matching static file BEFORE it runs the
+// route renderer (see the adapter's generated `entry.mjs`, which calls
+// `matchStaticAsset` first). A prerendered `/` therefore returns
+// `dist/client/index.html` directly and `src/middleware.ts` never runs, so
+// `<username>.dashpoint.store/` would show this landing page instead of the
+// merchant's storefront. Server-rendering `/` lets it match a real route, which
+// runs the middleware and lets it rewrite a store subdomain to `/store`.
+//
+// The output is still a plain HTML page; only the delivery path changes.
+export const prerender = false
+
 import Layout from '../layouts/Layout.astro'
 ---
 

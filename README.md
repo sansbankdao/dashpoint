@@ -4,6 +4,7 @@ A kombucha storefront and landing page built with [Astro](https://astro.build) a
 
 - Landing page: <https://dashpoint.store>
 - Storefront demo: <https://dashpoint.store/demo> (also served at <https://demo.dashpoint.store>)
+- Hosted storefront: `https://<username>.dashpoint.store` — resolves a Dash Platform username to that identity's store
 
 ## 🚀 Project Structure
 
@@ -23,17 +24,23 @@ The project is organized as follows:
 │   │   └── Layout.astro
 │   ├── lib
 │   │   ├── cart.ts
-│   │   └── cart.test.ts
+│   │   ├── cart.test.ts
+│   │   ├── store-api.ts            client for the dashpoint-api store + items resolver
+│   │   ├── store-api.test.ts
+│   │   ├── store-host.ts           hostname -> DPNS label parsing/validation
+│   │   └── store-host.test.ts
+│   ├── middleware.ts               rewrites a store subdomain's `/` to `/store`
 │   ├── pages
 │   │   ├── index.astro
-│   │   └── demo.astro
+│   │   ├── demo.astro
+│   │   └── store.astro
 │   ├── styles
 │   │   └── global.css
 │   └── types.ts
 └── package.json
 ```
 
-`/` is the landing page and `/demo` is the storefront. Both build from this one repo, so the demo cannot drift from what the landing page advertises.
+`/` is the landing page, `/demo` is the storefront demo, and `<username>.dashpoint.store/` is a merchant's hosted storefront. All build from this one repo, so the demo cannot drift from what the landing page advertises. `/demo` is prerendered; `/` and `/store` are server-rendered (see `AGENTS.md` for why).
 
 Product data lives in `src/data/products.ts`. The shared `Product` type is defined once in `src/types.ts` and imported wherever it is needed.
 

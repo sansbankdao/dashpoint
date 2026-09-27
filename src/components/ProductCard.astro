@@ -4,12 +4,23 @@ import type { Product } from '../types'
 
 interface Props extends Product {}
 
-const { id, title, price, imageUrl } = Astro.props;
+const { id, title, price, priceCents, imageUrl } = Astro.props;
+
+/*
+ * The price is carried to the cart as INTEGER CENTS.
+ *
+ * The click handler must not recover money from the displayed dollar string:
+ * `Math.round(price * 100)` round-trips a float and can land a cent off. Where
+ * the caller already knows the cents (a resolved Dash Platform item) those are
+ * emitted directly; the demo fixture only has dollars, so its cents are derived
+ * once, at build time, rather than at click time.
+ */
+const cents = priceCents ?? Math.round(price * 100)
 ---
 <button
     class="product-card border bg-white rounded-lg p-3 text-center flex flex-col items-center justify-between hover:shadow-lg hover:border-blue-600 transition-all duration-200 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-600"
     data-id={id}
-    data-price={price}
+    data-price-cents={cents}
     data-title={title}
 >
     <img src={imageUrl} alt={title} width="150" height="150" class="w-full h-24 object-contain mb-2" />
