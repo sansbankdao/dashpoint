@@ -1,0 +1,13 @@
+packages:
+  - "apps/*"
+
+# Build scripts are opt-in on pnpm 10. These are the ones the Astro builds and
+# `wrangler dev` need: esbuild is the bundler, sharp is pulled in transitively,
+# workerd is the local Workers runtime `wrangler dev` starts, and
+# @tailwindcss/oxide is Tailwind v4's native engine. No other dependency is
+# permitted to run a postinstall.
+onlyBuiltDependencies:
+  - esbuild
+  - sharp
+  - workerd
+  - '@tailwindcss/oxide'

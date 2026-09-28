@@ -1,0 +1,27 @@
+{
+  "name": "dashpoint",
+  "version": "0.1.0",
+  "private": true,
+  "description": "DashPoint — landing page, demo storefront, hosted storefront and point-of-sale.",
+  "author": "Sansbank contributors <hello@sansbank.org>",
+  "license": "MIT",
+  "packageManager": "pnpm@10.15.0",
+  "engines": {
+    "node": ">=22.12.0",
+    "pnpm": ">=9.0.0"
+  },
+  "scripts": {
+    "dev:web": "pnpm --filter @dashpoint/web dev",
+    "dev:store": "pnpm --filter @dashpoint/store dev",
+    "dev:pos": "pnpm --filter @dashpoint/pos dev",
+
+    "build:web": "pnpm --filter @dashpoint/web build",
+    "build:store": "pnpm --filter @dashpoint/store build",
+    "build:pos": "pnpm --filter @dashpoint/pos build",
+    "build": "pnpm -r build",
+
+    "check": "pnpm -r check",
+    "test": "pnpm -r test",
+    "audit": "pnpm -r audit"
+  }
+}
