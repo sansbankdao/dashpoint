@@ -1,0 +1,160 @@
+---
+// src/components/Storefront.astro
+import ProductCard from './ProductCard.astro'
+import type { Product } from '../types'
+
+interface Props {
+    products: Product[]
+    /*
+     * The store's own identity, when this storefront renders a Dash Platform
+     * store rather than the built-in demo. Every field is optional so the demo
+     * page keeps working unchanged: absent values fall back to the Homemade
+     * Crypto defaults below.
+     */
+    storeName?: string | null
+    storeDescription?: string | null
+    storeLogoUrl?: string | null
+    proofVerified?: boolean
+    itemsVerified?: boolean
+}
+
+const {
+    products,
+    storeName = null,
+    storeDescription = null,
+    storeLogoUrl = null,
+    proofVerified = false,
+    itemsVerified = false,
+} = Astro.props
+
+/* Header text for either a resolved store or the demo. */
+const heading = storeName ?? 'Homemade Crypto'
+const logo = storeLogoUrl ?? 'https://placehold.co/100x100/A7D397/424769/png?text=K'
+---
+
+<div class="min-h-screen flex items-center justify-center p-4">
+    <div class="w-full max-w-md bg-gray-50 rounded-2xl shadow-xl overflow-hidden relative">
+        <!-- Header -->
+        <header class="text-center py-6 px-4 bg-white border-b">
+            <img src={logo} alt={`${heading} logo`} width="100" height="100" class="w-24 h-24 rounded-full mx-auto mb-4 border-2 border-gray-200">
+            <h1 class="text-4xl font-bold text-gray-800">{heading}</h1>
+            {storeDescription && <p class="mt-2 text-sm text-gray-600">{storeDescription}</p>}
+            {proofVerified && (
+                <p class="mt-2 text-xs text-green-700" title="The store document's grovedb proof verified on the server.">
+                    Proof verified{itemsVerified ? ' · items proof verified' : ''}
+                </p>
+            )}
+        </header>
+
+        <!-- Product Grid -->
+        <main class="p-4 grid grid-cols-3 gap-3">
+            {products.map(product => (
+                <ProductCard
+                    id={product.id}
+                    title={product.title}
+                    price={product.price}
+                    imageUrl={product.imageUrl}
+                />
+            ))}
+        </main>
+
+        <!-- Cart line items -->
+        <section id="cart-items" class="px-4 pb-4 space-y-2"></section>
+
+        <!-- Footer / Cart Summary -->
+        <footer class="sticky bottom-0 bg-white border-t p-4 flex items-center justify-between">
+            <div class="flex items-baseline gap-4">
+                <span id="total-amount" aria-live="polite" class="text-3xl font-bold text-gray-900">$0.00</span>
+                <span class="border rounded-md px-3 py-1 text-sm font-medium text-gray-600 bg-gray-100">USD</span>
+            </div>
+            <button id="pay-button" class="bg-blue-600 text-white font-bold py-3 px-8 rounded-lg hover:bg-blue-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed">
+                Pay
+            </button>
+        </footer>
+    </div>
+</div>
+
+<script>
+import { addItem, removeItem, totalCents, formatCents, type CartItem } from '../lib/cart'
+
+// Simple in-memory cart
+const cartItems: CartItem[] = []
+
+// DOM Elements
+const productCards = document.querySelectorAll('.product-card')
+const totalAmountEl = document.getElementById('total-amount')
+const payButton = document.getElementById('pay-button') as HTMLButtonElement | null
+const cartItemsEl = document.getElementById('cart-items')
+
+function renderCart() {
+    if (cartItemsEl === null) return
+    if (totalAmountEl === null) return
+    if (payButton === null) return
+
+    cartItemsEl.innerHTML = ''
+
+    cartItems.forEach(item => {
+        const row = document.createElement('div')
+        row.className = 'flex items-center justify-between bg-white border rounded-lg px-3 py-2 text-sm'
+
+        const label = document.createElement('span')
+        label.className = 'text-gray-800'
+        label.textContent = `${item.title} × ${item.amount} — ${formatCents(item.price * item.amount)}`
+
+        const remove = document.createElement('button')
+        remove.className = 'text-red-600 font-bold px-2 rounded hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-500'
+        remove.setAttribute('aria-label', `Remove one ${item.title}`)
+        remove.textContent = '−'
+        remove.addEventListener('click', () => {
+            removeItem(cartItems, item.id)
+            renderCart()
+        })
+
+        row.appendChild(label)
+        row.appendChild(remove)
+        cartItemsEl.appendChild(row)
+    })
+
+    totalAmountEl.textContent = formatCents(totalCents(cartItems))
+    payButton.disabled = cartItems.length === 0
+}
+
+function handleProductClick(event: Event) {
+    const card = event.currentTarget
+
+    if (!(card instanceof HTMLElement)) return
+
+    const priceCents = parseInt(card.dataset.priceCents!, 10)
+    const title = card.dataset.title!
+    const id = parseInt(card.dataset.id!, 10)
+
+    // Guard against malformed data attributes rather than trusting the DOM.
+    if (!Number.isFinite(priceCents)) return
+    if (!Number.isFinite(id)) return
+
+    // Add to cart logic
+    addItem(cartItems, { id, title, priceCents })
+
+    // Update UI
+    renderCart()
+}
+
+// Attach event listeners
+productCards.forEach(card => {
+    card.addEventListener('click', handleProductClick);
+});
+
+// Pay button functionality (for demonstration)
+if (payButton !== null) {
+    payButton.addEventListener('click', () => {
+        const cents = totalCents(cartItems)
+        if (cents > 0) {
+            alert(`Proceeding to pay ${formatCents(cents)}\nItems: ${JSON.stringify(cartItems, null, 2)}`);
+            // In a real app, this would redirect to a payment page (like BTCPay Server's invoice page)
+        }
+    });
+}
+
+// Initial state
+renderCart();
+</script>

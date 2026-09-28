@@ -1,0 +1,122 @@
+---
+// src/pages/store.astro
+//
+// The hosted storefront for a single Dash Platform store, served from
+//
+//   <USERNAME>.dashpoint.store
+//
+// The page resolves the requested hostname to a store and renders it:
+//
+//   hostname label -> GET /v1/store -> the identity's proven `store` document
+//                                  -> its active `storeItem` documents
+//
+// The endpoint lives in the `dashpoint-api` Worker, which is routed in front of
+// this site at dashpoint.store/v1/*. It returns a store ONLY after the store
+// document's grovedb proof has verified, and this page renders the store only
+// when the response says so. A malformed host, an unregistered name, an
+// identity with no store, or an unreachable API all render "Store Not Found"
+// with a reason — the page never invents a storefront.
+//
+// Astro is a static build, so `Astro.request` carries the real request Host
+// header only when this page is server-rendered. `prerender = false` is what
+// makes that possible; without it the header is empty at build time and every
+// host would render "Store Not Found". The hostname is read here, and the SAME
+// functions are unit-tested in src/lib/store-host.test.ts.
+//
+// WHY THE FETCH HAPPENS ON THE SERVER
+// The page is already server-rendered to read the Host header, so resolving the
+// store in the same pass means the shop is in the first HTML response — no
+// client-side loading state, no flash of an empty store, and no CORS concern
+// (the request is same-origin from the Worker's point of view).
+
+export const prerender = false
+
+import Layout from '../layouts/Layout.astro'
+import Storefront from '../components/Storefront.astro'
+import StoreNotFound from '../components/StoreNotFound.astro'
+import { products as demoProducts } from '../data/products'
+import {
+    storeNameFromHostname,
+    isValidStoreName,
+    normalizeStoreName,
+} from '../lib/store-host'
+import {
+    fetchStore,
+    fetchStoreItems,
+    toProduct,
+    stringProperty,
+} from '../lib/store-api'
+
+const hostname = Astro.request.headers.get('host') ?? ''
+const candidate = storeNameFromHostname(hostname)
+const isValid = candidate !== null && isValidStoreName(candidate)
+
+/* The value a DPNS lookup compares against. Computed here so the reason text
+ * can show the normalized form the network will actually use. */
+const normalized = candidate === null ? null : normalizeStoreName(candidate)
+
+/* Only a syntactically valid host is worth a network call. */
+const storeLookup = isValid && candidate !== null ? await fetchStore(candidate) : null
+
+/*
+ * The products come from the resolver, not from a local fixture, once a store
+ * is found. The listing is a SECOND proven read, keyed by the store document id
+ * the first read returned, so a store's products are shown only after their own
+ * proof verified. When the item read fails the page still renders the store,
+ * with no products, because a product-list failure must not hide the store.
+ */
+let products = demoProducts
+let itemsVerified = false
+
+if (storeLookup !== null && storeLookup.status === 'found') {
+    const items = await fetchStoreItems(storeLookup.store.documentId)
+
+    if (items.status === 'found') {
+        products = items.items.map(toProduct).filter((product): product is NonNullable<typeof product> => product !== null)
+        itemsVerified = true
+    }
+}
+
+/*
+ * Pick the sentence shown under "Store Not Found".
+ *
+ * A malformed host is answered without a network call, so it is distinguished
+ * from the resolver's own reasons: the caller can tell a typo from a name that
+ * is simply unregistered.
+ */
+function reasonFor(lookup: typeof storeLookup, candidate: string | null): string {
+    if (candidate === null) return 'This address is not a store on Dash Platform.'
+
+    if (!isValidStoreName(candidate)) {
+        return `\u201c${candidate}\u201d is not a valid Dash Platform username (3 to 63 letters, digits or hyphens, no leading or trailing hyphen).`
+    }
+
+    if (lookup === null) return 'This address is not a store on Dash Platform.'
+
+    return lookup.status === 'found' ? 'This address is not a store on Dash Platform.' : lookup.reason
+}
+---
+
+{storeLookup !== null && storeLookup.status === 'found' ? (
+    <Layout
+        title={`${stringProperty(storeLookup.store.properties, 'name') ?? candidate} — Stores on Dash Platform`}
+        description={stringProperty(storeLookup.store.properties, 'description') ?? 'A storefront powered by Dash Platform.'}
+    >
+        <Storefront
+            products={products}
+            storeName={stringProperty(storeLookup.store.properties, 'name') ?? candidate}
+            storeDescription={stringProperty(storeLookup.store.properties, 'description')}
+            storeLogoUrl={stringProperty(storeLookup.store.properties, 'logoUrl') ?? stringProperty(storeLookup.store.properties, 'bannerUrl')}
+            proofVerified={storeLookup.store.proofVerified}
+            itemsVerified={itemsVerified}
+        />
+    </Layout>
+) : (
+    <Layout title="Store Not Found" description="No Dash Platform store exists at this address.">
+        <StoreNotFound
+            storeId={candidate}
+            reason={reasonFor(storeLookup, candidate)}
+            normalized={normalized}
+        />
+    </Layout>
+)}

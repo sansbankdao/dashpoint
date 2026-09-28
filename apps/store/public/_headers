@@ -1,0 +1,16 @@
+# img-src allows any HTTPS origin because a store's logo, banner and product
+# images are URLs the MERCHANT supplies in their Dash Platform store document.
+# They cannot be enumerated ahead of time. Inline SVG data: URIs are allowed so
+# the "Store Not Found" graphic needs no external origin.
+/*
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: SAMEORIGIN
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: geolocation=(), microphone=(), camera=()
+  Content-Security-Policy: default-src 'self'; img-src 'self' https: data:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'; frame-ancestors 'self'; base-uri 'self'; form-action 'self'
+
+/_astro/*
+  cache-control: public,max-age=31536000,immutable
+
+/favicon.svg
+  cache-control: public,max-age=2628000
