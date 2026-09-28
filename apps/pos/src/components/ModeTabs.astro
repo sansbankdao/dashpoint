@@ -1,0 +1,148 @@
+---
+// src/components/ModeTabs.astro
+---
+
+<div class="flex items-center justify-center gap-2 mb-6 pb-1" role="tablist">
+    <!-- Amount Tab -->
+    <div class="relative">
+        <input
+            id="ModeTablist-amounts"
+            name="mode"
+            value="amount"
+            type="radio"
+            role="tab"
+            checked
+            class="absolute opacity-0 w-0 h-0"
+        >
+        <label for="ModeTablist-amounts"
+               class="px-4 py-2 rounded-full text-sm font-medium border-2 border-blue-500 bg-blue-500 text-white shadow-lg scale-105 cursor-pointer hover:shadow-xl transition-all duration-200 whitespace-nowrap">
+            Amount
+        </label>
+    </div>
+
+    <!-- Discount Tab -->
+    <div class="relative">
+        <input
+            id="ModeTablist-discount"
+            name="mode"
+            value="discount"
+            type="radio"
+            role="tab"
+            disabled
+            class="absolute opacity-0 w-0 h-0"
+        >
+        <label for="ModeTablist-discount"
+               class="px-4 py-2 rounded-full text-sm font-medium border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 cursor-not-allowed opacity-50 whitespace-nowrap">
+            Discount
+        </label>
+    </div>
+
+    <!-- Tip Tab -->
+    <div class="relative">
+        <input
+            id="ModeTablist-tip"
+            name="mode"
+            value="tip"
+            type="radio"
+            role="tab"
+            disabled
+            class="absolute opacity-0 w-0 h-0"
+        >
+        <label for="ModeTablist-tip"
+               class="px-4 py-2 rounded-full text-sm font-medium border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 cursor-not-allowed opacity-50 whitespace-nowrap">
+            Tip
+        </label>
+    </div>
+</div>
+
+<script>
+    const app = document.getElementById('pos-app')
+
+    /*
+     * Scope the listeners to the tabs themselves.
+     *
+     * `document.querySelectorAll('label')` matched EVERY label on the page,
+     * including the checkout panel's, so an unrelated change event could drive
+     * the tab list.
+     */
+    const inputs = document.querySelectorAll('[role="tablist"] input[name="mode"]') as NodeListOf<HTMLInputElement>
+    const labels = document.querySelectorAll('label')
+
+    inputs.forEach((input, index) => {
+        input.addEventListener('change', () => {
+            if (input.checked) {
+                const mode = input.value as 'amount' | 'discount' | 'tip'
+                app?.dispatchEvent(new CustomEvent('modechange', {
+                    detail: { mode },
+                    bubbles: true,
+                    composed: true
+                }))
+            }
+        })
+    })
+
+    app?.addEventListener('stateupdate', (e: any) => {
+        const { total, activeMode } = e.detail
+        const discountInput = document.getElementById('ModeTablist-discount') as HTMLInputElement
+        const tipInput = document.getElementById('ModeTablist-tip') as HTMLInputElement
+        const discountLabel = document.querySelector('[for="ModeTablist-discount"]')!
+        const tipLabel = document.querySelector('[for="ModeTablist-tip"]')!
+        const amountLabel = document.querySelector('[for="ModeTablist-amounts"]')!
+
+        /*
+         * Discount and Tip act on a sale, so they are available whenever there
+         * is a sale to act on.
+         *
+         * These were gated on hasBaseAmount, which is only set by the + key, so
+         * a clerk who typed the whole amount on the display could not apply
+         * either one. The Pay button was fixed for exactly this reason; the same
+         * rule applies here. `total` covers both the display and the running
+         * base, so it is the correct gate.
+         *
+         * A discount or tip that is already applied also counts as a sale in
+         * progress: a 100% discount drives the total to zero, and gating on the
+         * total alone would disable the very tab the clerk is standing in.
+         */
+        const isEnabled = Number(total) > 0
+            || Number(e.detail.discountPercent) > 0
+            || Number(e.detail.tipPercent) > 0
+        discountInput.disabled = !isEnabled
+        tipInput.disabled = !isEnabled
+
+        /*
+         * Paint every tab from the current mode.
+         *
+         * The labels previously carried a hard-coded "selected" look on the
+         * Amount tab and nothing ever removed it, so clicking Discount or Tip
+         * changed the mode internally while Amount still LOOKED selected. The
+         * active tab is now derived from the mode on every state update.
+         */
+        const paint = (label: Element, active: boolean, enabled: boolean) => {
+            /* Selected: solid blue. */
+            label.classList.toggle('bg-blue-500', active)
+            label.classList.toggle('border-blue-500', active)
+            label.classList.toggle('text-white', active)
+            label.classList.toggle('shadow-lg', active)
+            label.classList.toggle('scale-105', active)
+            /* Unselected but usable: outlined. */
+            label.classList.toggle('bg-white', !active && enabled)
+            label.classList.toggle('dark:bg-slate-800/80', !active && enabled)
+            label.classList.toggle('border-slate-200', !active && enabled)
+            label.classList.toggle('dark:border-slate-700', !active && enabled)
+            label.classList.toggle('text-slate-700', !active && enabled)
+            label.classList.toggle('dark:text-slate-200', !active && enabled)
+            /* Unavailable: dimmed and non-interactive. */
+            label.classList.toggle('opacity-50', !active && !enabled)
+            label.classList.toggle('cursor-not-allowed', !active && !enabled)
+            label.classList.toggle('bg-slate-100', !active && !enabled)
+            label.classList.toggle('dark:bg-slate-800/50', !active && !enabled)
+            label.classList.toggle('text-slate-500', !active && !enabled)
+            label.classList.toggle('dark:text-slate-400', !active && !enabled)
+            label.classList.toggle('border-slate-200', !active && !enabled)
+        }
+
+        paint(amountLabel, activeMode === 'amount', true)
+        paint(discountLabel, activeMode === 'discount', isEnabled)
+        paint(tipLabel, activeMode === 'tip', isEnabled)
+    })
+</script>

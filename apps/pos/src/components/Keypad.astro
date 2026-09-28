@@ -1,0 +1,71 @@
+---
+// src/components/Keypad.astro
+---
+
+<div class="keypad grid grid-cols-3 gap-3 md:gap-4 mb-4 md:mb-6 max-w-xs mx-auto">
+    <!-- Row 1 -->
+    <button class="key-btn touch-manipulation h-10 sm:h-14 md:h-14 lg:h-16 rounded-2xl text-3xl font-mono shadow-xl hover:shadow-2xl active:scale-95 transition-all duration-150 border-2 border-slate-200 dark:border-slate-700 flex items-center justify-center bg-slate-100 dark:bg-slate-700/50 hover:bg-slate-200 dark:hover:bg-slate-600" data-key="1">1</button>
+    <button class="key-btn touch-manipulation h-10 sm:h-14 md:h-14 lg:h-16 rounded-2xl text-3xl font-mono shadow-xl hover:shadow-2xl active:scale-95 transition-all duration-150 border-2 border-slate-200 dark:border-slate-700 flex items-center justify-center bg-slate-100 dark:bg-slate-700/50 hover:bg-slate-200 dark:hover:bg-slate-600" data-key="2">2</button>
+    <button class="key-btn touch-manipulation h-10 sm:h-14 md:h-14 lg:h-16 rounded-2xl text-3xl font-mono shadow-xl hover:shadow-2xl active:scale-95 transition-all duration-150 border-2 border-slate-200 dark:border-slate-700 flex items-center justify-center bg-slate-100 dark:bg-slate-700/50 hover:bg-slate-200 dark:hover:bg-slate-600" data-key="3">3</button>
+
+    <!-- Row 2 -->
+    <button class="key-btn touch-manipulation h-10 sm:h-14 md:h-14 lg:h-16 rounded-2xl text-3xl font-mono shadow-xl hover:shadow-2xl active:scale-95 transition-all duration-150 border-2 border-slate-200 dark:border-slate-700 flex items-center justify-center bg-slate-100 dark:bg-slate-700/50 hover:bg-slate-200 dark:hover:bg-slate-600" data-key="4">4</button>
+    <button class="key-btn touch-manipulation h-10 sm:h-14 md:h-14 lg:h-16 rounded-2xl text-3xl font-mono shadow-xl hover:shadow-2xl active:scale-95 transition-all duration-150 border-2 border-slate-200 dark:border-slate-700 flex items-center justify-center bg-slate-100 dark:bg-slate-700/50 hover:bg-slate-200 dark:hover:bg-slate-600" data-key="5">5</button>
+    <button class="key-btn touch-manipulation h-10 sm:h-14 md:h-14 lg:h-16 rounded-2xl text-3xl font-mono shadow-xl hover:shadow-2xl active:scale-95 transition-all duration-150 border-2 border-slate-200 dark:border-slate-700 flex items-center justify-center bg-slate-100 dark:bg-slate-700/50 hover:bg-slate-200 dark:hover:bg-slate-600" data-key="6">6</button>
+
+    <!-- Row 3 -->
+    <button class="key-btn touch-manipulation h-10 sm:h-14 md:h-14 lg:h-16 rounded-2xl text-3xl font-mono shadow-xl hover:shadow-2xl active:scale-95 transition-all duration-150 border-2 border-slate-200 dark:border-slate-700 flex items-center justify-center bg-slate-100 dark:bg-slate-700/50 hover:bg-slate-200 dark:hover:bg-slate-600" data-key="7">7</button>
+    <button class="key-btn touch-manipulation h-10 sm:h-14 md:h-14 lg:h-16 rounded-2xl text-3xl font-mono shadow-xl hover:shadow-2xl active:scale-95 transition-all duration-150 border-2 border-slate-200 dark:border-slate-700 flex items-center justify-center bg-slate-100 dark:bg-slate-700/50 hover:bg-slate-200 dark:hover:bg-slate-600" data-key="8">8</button>
+    <button class="key-btn touch-manipulation h-10 sm:h-14 md:h-14 lg:h-16 rounded-2xl text-3xl font-mono shadow-xl hover:shadow-2xl active:scale-95 transition-all duration-150 border-2 border-slate-200 dark:border-slate-700 flex items-center justify-center bg-slate-100 dark:bg-slate-700/50 hover:bg-slate-200 dark:hover:bg-slate-600" data-key="9">9</button>
+
+    <!-- Row 4: X | 0 | + -->
+    <button class="key-btn touch-manipulation h-10 sm:h-14 md:h-14 lg:h-16 rounded-2xl text-3xl font-mono shadow-xl hover:shadow-2xl active:scale-95 transition-all duration-150 border-2 border-red-300 dark:border-red-600 flex items-center justify-center bg-red-50 dark:bg-red-900/30 hover:bg-red-100 dark:hover:bg-red-800/30" data-key="clear" style="aspect-ratio: 1;">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M18 6L6 18M6 6l12 12"/>
+        </svg>
+    </button>
+    <button class="key-btn touch-manipulation h-10 sm:h-14 md:h-14 lg:h-16 rounded-2xl text-3xl font-mono shadow-xl hover:shadow-2xl active:scale-95 transition-all duration-150 border-2 border-slate-200 dark:border-slate-700 flex items-center justify-center bg-slate-100 dark:bg-slate-700/50 hover:bg-slate-200 dark:hover:bg-slate-600" data-key="0" style="aspect-ratio: 1;">0</button>
+    <button class="key-btn touch-manipulation h-10 sm:h-14 md:h-14 lg:h-16 rounded-2xl text-3xl font-mono shadow-xl hover:shadow-2xl active:scale-95 transition-all duration-150 border-2 border-blue-300 dark:border-blue-600 flex items-center justify-center bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-800/30" data-key="add" style="aspect-ratio: 1;">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+        </svg>
+    </button>
+</div>
+
+<script>
+    const container = document.querySelector('.keypad')!
+
+    document.querySelectorAll('button[data-key]').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const target = e.currentTarget as HTMLElement
+            const key = target.dataset.key
+
+            if (!key) return
+
+            const eventName = (() => {
+                if (['1','2','3','4','5','6','7','8','9','0'].includes(key)) {
+                    return 'keypad:input'
+                } else if (key === 'clear') {
+                    return 'keypad:clear'
+                } else if (key === 'add') {
+                    return 'keypad:add'
+                }
+                return null
+            })()
+
+            if (!eventName) return
+
+            const detail: any = {}
+            if (eventName === 'keypad:input') {
+                detail.key = key
+            }
+
+            container.dispatchEvent(new CustomEvent(eventName, {
+                detail,
+                bubbles: true,
+                composed: true
+            }))
+        })
+    })
+</script>

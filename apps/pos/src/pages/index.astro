@@ -1,0 +1,1669 @@
+---
+// src/pages/index.astro
+
+import '../styles/global.css'
+import Display from '../components/Display.astro'
+import ModeTabs from '../components/ModeTabs.astro'
+import ModeContent from '../components/ModeContent.astro'
+import Keypad from '../components/Keypad.astro'
+
+// SSR state
+let amountStr = '0'
+let discountPercent = 0
+let tipPercent = 0
+let baseAmount = 0
+
+function calculateTotal(amount: string, discount: number, tip: number): number {
+    const base = parseFloat(amount) || 0
+    const afterDiscount = base * (1 - discount / 100)
+    return afterDiscount * (1 + tip / 100)
+}
+
+const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
+---
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>DashPoint POS</title>
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="DashPoint" />
+    <meta name="theme-color" content="#2563eb" />
+    <!-- Makes the terminal installable as a standalone app. start_url is /. -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+</head>
+<body class="min-h-dvh bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 dark:from-slate-900 dark:via-slate-900 dark:to-indigo-950 text-slate-900 dark:text-slate-100 flex flex-col">
+    <div id="pos-app" class="flex flex-col h-dvh">
+        <!--
+            Store Header
+
+            The menu button sits here rather than in a bar of its own so the
+            header stays one row on every device. On wide screens the title
+            moves to the left and the terminal's own actions follow it, which
+            is the same information the portrait header carries, rearranged.
+        -->
+        <header class="bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm border-b border-slate-200 dark:border-slate-700 px-4 py-3 shadow-sm sticky top-0 z-50">
+            <div class="flex items-center gap-3">
+                <button id="menu-btn" type="button" aria-label="Menu" aria-expanded="false" aria-controls="app-menu"
+                        class="shrink-0 inline-flex items-center justify-center w-11 h-11 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/60 active:scale-95 transition-all duration-150">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                        <line x1="3" y1="6" x2="21" y2="6"></line>
+                        <line x1="3" y1="12" x2="21" y2="12"></line>
+                        <line x1="3" y1="18" x2="21" y2="18"></line>
+                    </svg>
+                </button>
+                <h1 id="store-name" class="text-xl sm:text-2xl font-bold flex-1 text-center md:text-left md:ml-1 truncate">DashPoint POS</h1>
+                <!-- Balances the menu button so the title stays optically centred on mobile. -->
+                <div class="shrink-0 w-11 h-11 md:hidden" aria-hidden="true"></div>
+            </div>
+        </header>
+
+        <!--
+            Slide-out menu.
+
+            Hidden on load and opened by the header button. It holds the
+            terminal-level links that do not belong in the sale flow, so the
+            main column can carry nothing but the amount and the keypad.
+        -->
+        <div id="menu-backdrop" class="hidden fixed inset-0 z-[70] bg-slate-900/50 backdrop-blur-sm"></div>
+        <nav id="app-menu" aria-label="Terminal menu"
+             class="hidden fixed top-0 left-0 z-[80] h-full w-72 max-w-[85vw] bg-white dark:bg-slate-800 shadow-2xl flex-col p-4 gap-1 transition-transform duration-200 -translate-x-full">
+            <div class="flex items-center justify-between mb-3">
+                <span class="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Menu</span>
+                <button id="menu-close" type="button" aria-label="Close menu"
+                        class="inline-flex items-center justify-center w-9 h-9 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/60 text-2xl leading-none">&times;</button>
+            </div>
+            <a href="/" class="flex items-center gap-3 rounded-xl px-3 py-3 font-medium hover:bg-slate-100 dark:hover:bg-slate-700/60">Terminal</a>
+            <a href="/admin" class="flex items-center gap-3 rounded-xl px-3 py-3 font-medium hover:bg-slate-100 dark:hover:bg-slate-700/60">Terminal Admin</a>
+            <a href="/privacy" class="flex items-center gap-3 rounded-xl px-3 py-3 font-medium hover:bg-slate-100 dark:hover:bg-slate-700/60">Privacy</a>
+            <a href="/terms" class="flex items-center gap-3 rounded-xl px-3 py-3 font-medium hover:bg-slate-100 dark:hover:bg-slate-700/60">Terms</a>
+            <div id="menu-store-name" class="mt-auto text-xs text-slate-400 dark:text-slate-500 px-3 py-2">DashPoint POS</div>
+        </nav>
+
+        <!--
+            Single-screen main column.
+
+            Portrait: display, banner, tabs and keypad stack, as before.
+            Landscape (md and up): the amount panel takes the left half and the
+            controls take the right, so the whole terminal fits one screen
+            without scrolling. `md:flex-row` is the only structural switch; the
+            children keep their existing classes in portrait.
+        -->
+        <main class="flex flex-col gap-3 sm:gap-4 my-auto px-6 flex-1 min-h-0 justify-center md:flex-row md:items-center md:gap-10 md:px-10 md:py-6 md:max-w-6xl md:mx-auto md:w-full">
+            <!-- Display Area -->
+            <div class="flex flex-col items-center px-6 mb-auto flex-grow justify-center min-h-0 md:mb-0 md:min-h-0 md:w-1/2 md:flex-none md:px-0">
+                <!--
+                    Minimum payment banner.
+
+                    The floor is per-route and is only reported by 1Click when
+                    it REFUSES a quote, which is after the clerk has committed
+                    to a sale. It is read up front from GET /v1/minimum and
+                    shown here, above the amount, so a sale that cannot be paid
+                    is known before the payment screen opens.
+
+                    It sits above the amount deliberately. The clerk needs the
+                    floor BEFORE ringing anything up, and a banner below the
+                    digits competed with the keypad for the single screen the
+                    terminal must occupy. It is hidden as soon as a figure is
+                    keyed in, because the live total is then the more useful
+                    number, and restored when the entry is cleared.
+                -->
+                <!--
+                    Deliberately low-contrast: this is reference information,
+                    not a warning about the current sale. It keeps the same
+                    wording and placement but drops the amber fill, border and
+                    headline size so it reads as part of the background instead
+                    of an alert.
+                -->
+                <div id="pos-minimum" class="hidden flex-col items-center gap-0.5 px-4 text-center">
+                    <div class="text-[10px] font-medium uppercase tracking-wider text-slate-400 dark:text-slate-500">Minimum payment</div>
+                    <div id="pos-minimum-usd" class="text-sm font-semibold leading-tight text-slate-500 dark:text-slate-400"></div>
+                    <div id="pos-minimum-assets" class="text-[11px] text-slate-400 dark:text-slate-500"></div>
+                </div>
+
+                <Display client:load />
+                <ModeContent client:load />
+            </div>
+
+            <!-- Controls column: tabs, keypad and Pay in one stack on wide screens. -->
+            <div class="flex flex-col w-full md:w-1/2 md:max-w-md">
+                <!-- Mode Tabs -->
+                <ModeTabs client:load />
+
+                <!-- Keypad -->
+                <Keypad client:load />
+            </div>
+        </main>
+
+        <!-- Pay Button -->
+        <div class="px-6 pb-4 sm:pb-5 md:px-10 md:pb-6 md:max-w-6xl md:mx-auto md:w-full">
+            <!--
+                Cash register.
+
+                The running amount sits in the drawer face, so the figure the
+                customer is being charged is visible at the point of sale and
+                not only on the customer-facing display above. It reuses
+                #pos-total by delegating to calculateTotal() from updateDOM(),
+                so it can never disagree with the amount the sale is priced at.
+
+                Hidden until there is something to charge. A register reading
+                $0.00 next to an empty keypad is noise, and it would occupy the
+                single screen the terminal must fit on.
+            -->
+            <div id="register" class="hidden flex-col gap-1 mb-2">
+                <div class="flex items-baseline justify-between gap-2 px-1">
+                    <span class="text-[10px] font-medium uppercase tracking-wider text-slate-400 dark:text-slate-500">Cash register</span>
+                    <span id="register-total" class="text-2xl font-black leading-none">$0.00</span>
+                </div>
+                <!--
+                    The drawer face. It is drawn here and pulled open by the
+                    class change in pumpRegister(): the lid slides up and the
+                    tray of notes becomes visible, so a completed sale reads as
+                    a drawer that has opened rather than a button that flashed.
+                -->
+                <div id="register-drawer" class="relative h-9 rounded-xl border border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-900 overflow-hidden transition-all duration-300">
+                    <div class="absolute inset-x-0 bottom-0 flex h-full items-end justify-center gap-1 px-3 pb-1">
+                        <span class="h-3 w-8 rounded-sm bg-emerald-500/70"></span>
+                        <span class="h-5 w-10 rounded-sm bg-blue-500/70"></span>
+                        <span class="h-4 w-8 rounded-sm bg-amber-500/70"></span>
+                        <span class="h-6 w-10 rounded-sm bg-emerald-500/70"></span>
+                        <span class="h-3 w-8 rounded-sm bg-blue-500/70"></span>
+                    </div>
+                    <div id="register-lid" class="absolute inset-x-0 top-0 flex h-full items-center justify-center bg-slate-200 dark:bg-slate-700 transition-transform duration-300">
+                        <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400" id="register-label">Closed</span>
+                    </div>
+                </div>
+            </div>
+
+            <button id="charge-btn"
+                class="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 disabled:from-slate-400 disabled:to-slate-500 text-white font-bold py-5 px-6 rounded-2xl text-xl shadow-2xl hover:shadow-3xl active:translate-y-0.5 transition-all duration-200 disabled:cursor-not-allowed disabled:shadow-lg flex items-center justify-center h-16 disabled:transform-none text-lg"
+                disabled>
+                Pay Now
+            </button>
+        </div>
+    </div>
+
+    <!--
+        Payment celebration.
+
+        Confetti plus a large PAID stamp. It is a fixed overlay rather than a
+        change to the checkout card, because the moment a payment lands is the
+        one moment the whole screen should say so.
+    -->
+    <div id="paid-overlay" class="hidden fixed inset-0 z-[90] pointer-events-none items-center justify-center">
+        <canvas id="paid-confetti" class="absolute inset-0 w-full h-full"></canvas>
+        <!--
+            The stamp. Scaled in from 0.6 with a slight over-rotation, which is
+            what makes it read as stamped rather than faded in.
+        -->
+        <div id="paid-stamp" class="relative select-none rounded-2xl border-8 border-emerald-500 bg-emerald-500/95 px-10 py-6 shadow-2xl scale-50 -rotate-12 opacity-0 transition-all duration-500">
+            <div class="text-6xl sm:text-7xl font-black tracking-tight text-white text-center leading-none">PAID</div>
+            <div id="paid-amount" class="text-center text-lg font-bold text-white/90 mt-2"></div>
+        </div>
+    </div>
+
+    <!-- Checkout Panel -->
+    <!--
+        Hidden until a quote exists. This is a plain section rather than a new
+        component so that no existing component contract changes: the POS still
+        communicates through the same stateupdate / calculateTotal() model, and
+        this panel is driven from the same inline script.
+    -->
+    <div id="checkout-panel" class="hidden fixed inset-0 z-[60] bg-slate-900/60 backdrop-blur-sm p-4 overflow-y-auto">
+        <div class="max-w-lg mx-auto mt-8 bg-white dark:bg-slate-800 rounded-3xl shadow-2xl p-6 flex flex-col gap-4">
+            <div class="flex items-center justify-between">
+                <h2 class="text-xl font-bold">Pay with crypto</h2>
+                <button id="checkout-close" type="button" class="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 text-2xl leading-none">&times;</button>
+            </div>
+
+            <!--
+                Payment method chooser.
+
+                A native <select> showed every asset at the same prominence and
+                gave no way to find one in a list of seventeen. This replaces it
+                with buttons: a few popular methods are always visible, and the
+                rest are reachable through search, so a clerk who takes USDC all
+                day never scrolls and a clerk who takes something unusual can
+                still find it by name or ticker.
+            -->
+            <div class="flex flex-col gap-2">
+                <div class="text-sm font-medium">Pay with</div>
+                <div id="checkout-popular" class="grid grid-cols-2 gap-2"></div>
+                <label class="flex flex-col gap-1 text-sm font-medium">
+                    Search all methods
+                    <input id="checkout-asset-search" type="search" autocomplete="off" placeholder="e.g. SOL, USDC, Litecoin"
+                           class="border border-slate-300 dark:border-slate-600 rounded-xl px-3 py-2 bg-white dark:bg-slate-900 text-base" />
+                </label>
+                <div id="checkout-asset-results" class="hidden flex-col gap-2 max-h-56 overflow-y-auto"></div>
+                <div id="checkout-asset-selected" class="flex items-center gap-2 rounded-xl border-2 border-blue-500 bg-blue-50 dark:bg-blue-950/40 px-3 py-2">
+                    <span id="checkout-asset-selected-icon" class="shrink-0"></span>
+                    <span>
+                        <span class="block text-xs font-semibold uppercase tracking-wide text-blue-700 dark:text-blue-300">Selected</span>
+                        <span id="checkout-asset-selected-label" class="block text-sm font-bold"></span>
+                    </span>
+                </div>
+            </div>
+
+            <!-- Destination address is NOT shown. The payout target is the
+                 merchant's own address, saved on /admin for this device and
+                 sent with the quote, so there is nothing for the customer or
+                 clerk to see or mistype here. -->
+
+            <!-- Action / status -->
+            <button id="checkout-quote" type="button" class="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 disabled:from-slate-400 disabled:to-slate-500 text-white font-bold py-4 px-6 rounded-2xl shadow-lg disabled:cursor-not-allowed">
+                Make Payment
+            </button>
+
+            <!--
+                Prominent minimum.
+
+                1Click refuses a sale below a per-route floor. Its message quotes
+                the floor in DASH base units, which means nothing to a customer
+                standing at a counter, so the API converts it and it is shown
+                here at display size before anything is paid.
+            -->
+            <div id="checkout-minimum" class="hidden flex-col items-center gap-1 rounded-2xl border-2 border-amber-400 dark:border-amber-600 bg-amber-50 dark:bg-amber-950/40 px-4 py-5 text-center">
+                <div class="text-xs font-semibold uppercase tracking-wide text-amber-800 dark:text-amber-300">Minimum payment</div>
+                <div id="checkout-minimum-usd" class="text-4xl font-black leading-none text-amber-900 dark:text-amber-100"></div>
+                <div id="checkout-minimum-asset" class="text-sm font-medium text-amber-800 dark:text-amber-300"></div>
+            </div>
+
+            <p id="checkout-error" class="hidden text-sm text-red-600 dark:text-red-400"></p>
+
+            <!--
+                Setup prompt.
+
+                Shown instead of the payment instructions when the terminal has
+                no DASH payout address saved on /admin for this device. Without
+                one there is nowhere to deliver the funds, so the sale must not
+                be able to start. The customer never sees a quote in this state.
+            -->
+            <div id="checkout-setup" class="hidden flex-col gap-3 rounded-xl border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/40 p-4">
+                <h3 class="text-sm font-semibold text-amber-900 dark:text-amber-200">This terminal is not ready to take payments</h3>
+                <p class="text-xs text-amber-900 dark:text-amber-200">
+                    No DASH payout address is configured, so there is nowhere to send the
+                    money. The address is set by the operator in the Terminal Admin
+                    settings, and is never entered here. The address can be set at any
+                    time; a sale that is already paid is unaffected.
+                </p>
+                <p class="text-xs text-amber-900 dark:text-amber-200">
+                    Questions? Contact the merchant who runs this terminal.
+                </p>
+            </div>
+
+            <!-- Quote result -->
+            <div id="checkout-result" class="hidden flex-col gap-3 border-t border-slate-200 dark:border-slate-700 pt-4">
+                <!--
+                    "Send exactly" names the asset as well as the amount.
+
+                    The amount alone ("1.99984331") left the customer to
+                    remember which coin they had chosen, and the QR/deposit rows
+                    below are chain addresses that differ per asset. The ticker
+                    is carried next to the figure so the two cannot be confused.
+                -->
+                <div class="text-sm text-slate-500 dark:text-slate-400">Send exactly</div>
+                <div class="flex items-baseline gap-2 flex-wrap">
+                    <div id="checkout-amount" class="text-2xl font-bold break-all"></div>
+                    <div id="checkout-amount-symbol" class="text-2xl font-bold text-slate-500 dark:text-slate-400"></div>
+                </div>
+                <div id="checkout-amount-usd" class="text-sm text-slate-500 dark:text-slate-400"></div>
+                <div class="text-sm text-slate-500 dark:text-slate-400 mt-2">to</div>
+                <!--
+                    The QR code sits ABOVE the address.
+
+                    A customer scans first and types only as a fallback, so the
+                    scannable form leads and the text form follows. The code is
+                    rendered locally from the deposit URI; nothing is sent to a
+                    third-party image service.
+                -->
+                <div id="checkout-qr-wrap" class="hidden flex-col items-center gap-2">
+                    <canvas id="checkout-qr" class="rounded-xl bg-white p-3" width="208" height="208"></canvas>
+                </div>
+                <div id="checkout-deposit" class="font-mono text-sm break-all bg-slate-100 dark:bg-slate-900 rounded-xl p-3"></div>
+                <div id="checkout-memo-wrap" class="hidden flex-col gap-1">
+                    <div class="text-sm text-slate-500 dark:text-slate-400">with memo</div>
+                    <div id="checkout-memo" class="font-mono text-sm break-all bg-slate-100 dark:bg-slate-900 rounded-xl p-3"></div>
+                </div>
+                <div id="checkout-status" class="text-sm font-medium"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- CENTRAL STATE MANAGEMENT ---
+        let amountStr = '0'  // Stores cents as integer (500 = $5.00)
+        let discountPercent = 0
+        let tipPercent = 0
+        let baseAmount = 0
+        let activeMode = 'amount' // 'amount', 'discount', 'tip'
+        let hasBaseAmount = false
+
+        // DOM Elements
+        const app = document.getElementById('pos-app')
+        const chargeBtn = document.getElementById('charge-btn')
+        const storeNameEl = document.getElementById('store-name')
+        const menuStoreNameEl = document.getElementById('menu-store-name')
+
+        /*
+         * Show the merchant's store name in the header and the menu footer.
+         *
+         * The name is a display preference saved by /admin for this device, and
+         * it falls back to the shipped default when none was set, so the header
+         * never becomes empty. The document title is renamed too: an installed
+         * PWA takes its app label from here, and "DashPoint POS" would otherwise
+         * show on the home screen instead of the merchant's own shop.
+         */
+        function applyStoreName() {
+            let name = ''
+            try {
+                const raw = JSON.parse(localStorage.getItem(CONFIG_STORAGE_KEY) || '{}')
+                if (typeof raw.storeName === 'string') name = raw.storeName.trim()
+            } catch {
+                /* Unreadable storage leaves the shipped default in place. */
+            }
+            if (!name) name = 'DashPoint POS'
+            if (storeNameEl) storeNameEl.textContent = name
+            if (menuStoreNameEl) menuStoreNameEl.textContent = name
+            document.title = name
+        }
+
+        /*
+         * Slide-out menu.
+         *
+         * Opened by the header button. The backdrop and Escape both close it,
+         * and the panel is taken out of the layout when closed so it cannot
+         * intercept taps meant for the keypad underneath.
+         */
+        const menuBtn = document.getElementById('menu-btn')
+        const menuPanel = document.getElementById('app-menu')
+        const menuBackdrop = document.getElementById('menu-backdrop')
+        const menuClose = document.getElementById('menu-close')
+
+        function openMenu() {
+            if (!menuPanel || !menuBackdrop) return
+            menuBackdrop.classList.remove('hidden')
+            menuPanel.classList.remove('hidden')
+            menuPanel.classList.add('flex')
+            /*
+             * The slide-in needs the browser to register the off-screen start
+             * state before the transform is lifted, or the two changes collapse
+             * into one and the panel appears already in place.
+             *
+             * This was done on requestAnimationFrame, which is throttled or
+             * skipped in environments that do not paint every frame (a
+             * backgrounded tab, some headless modes), leaving the open panel
+             * parked fully off-screen. Reading offsetHeight forces a synchronous
+             * reflow instead: it cannot be skipped, and it commits the start
+             * state just as reliably.
+             */
+            void menuPanel.offsetHeight
+            menuPanel.classList.remove('-translate-x-full')
+            menuBtn?.setAttribute('aria-expanded', 'true')
+        }
+
+        function closeMenu() {
+            if (!menuPanel || !menuBackdrop) return
+            menuPanel.classList.add('-translate-x-full')
+            menuBackdrop.classList.add('hidden')
+            menuBtn?.setAttribute('aria-expanded', 'false')
+            const hide = () => {
+                menuPanel.classList.add('hidden')
+                menuPanel.classList.remove('flex')
+                menuPanel.removeEventListener('transitionend', hide)
+            }
+            menuPanel.addEventListener('transitionend', hide)
+            /*
+             * A transition that never fires (a reduced-motion setting, or the
+             * panel already at rest) would leave the panel on screen, so the
+             * hide is also forced on a timer as a fallback.
+             */
+            window.setTimeout(hide, 250)
+        }
+
+        menuBtn?.addEventListener('click', openMenu)
+        menuClose?.addEventListener('click', closeMenu)
+        menuBackdrop?.addEventListener('click', closeMenu)
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && menuPanel && !menuPanel.classList.contains('hidden')) closeMenu()
+        })
+
+        /*
+         * The lowest amount any accepted asset can pay.
+         *
+         * Null until GET /v1/minimum answers, and left null when the price is
+         * unavailable. It is NEVER 0: a $0.00 floor reads as "anything is
+         * accepted" and would silently disable the warning it exists to give.
+         */
+        let lowestMinimumUsd: number | null = null
+
+        /* The assets that can pay the reported minimum, as a short label. */
+        let minimumAssetSummary = ''
+
+        const posMinimum = document.getElementById('pos-minimum')
+        const posMinimumUsd = document.getElementById('pos-minimum-usd')
+        const posMinimumAssets = document.getElementById('pos-minimum-assets')
+
+        const registerEl = document.getElementById('register')
+        const registerTotal = document.getElementById('register-total')
+        const registerDrawer = document.getElementById('register-drawer')
+        const registerLid = document.getElementById('register-lid')
+        const registerLabel = document.getElementById('register-label')
+        const paidOverlay = document.getElementById('paid-overlay')
+        const paidStamp = document.getElementById('paid-stamp')
+        const paidAmount = document.getElementById('paid-amount')
+        const paidConfetti = document.getElementById('paid-confetti') as HTMLCanvasElement | null
+
+        // Custom Events
+        app?.addEventListener('modechange', (e: any) => {
+            activeMode = e.detail.mode
+            updateDOM()
+        })
+
+        app?.addEventListener('keypad:input', (e: any) => {
+            handleKeyInput(e.detail.key)
+        })
+
+        app?.addEventListener('keypad:clear', () => {
+            handleClear()
+        })
+
+        app?.addEventListener('keypad:add', () => {
+            handleAdd()
+        })
+
+        app?.addEventListener('tip:preset', (e: any) => {
+            tipPercent = e.detail.tip
+            activeMode = 'amount'
+            updateDOM()
+        })
+
+        // Core Logic
+        function calculateTotal() {
+            /*
+             * The total is the running base plus whatever is on the display.
+             *
+             * The + key moves the typed amount into baseAmount and clears the
+             * display, so baseAmount is the already-entered subtotal. Reading
+             * only amountStr here made + a one-way trip: it zeroed the display,
+             * the total became 0, and Pay stayed disabled for the rest of the
+             * sale. The display keeps its cent semantics, so baseAmount is the
+             * dollar value and amountStr is converted from cents.
+             */
+            const displayed = parseFloat(amountStr) / 100 || 0  // Convert cents to dollars
+            const base = baseAmount + displayed
+            const afterDiscount = base * (1 - discountPercent / 100)
+            return afterDiscount * (1 + tipPercent / 100)
+        }
+
+        function formatCurrency(value: number, withSymbol = true): string {
+            return (withSymbol ? '$' : '') + value.toLocaleString('en-US', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            })
+        }
+
+        function getDynamicFontSize(amountStr: string): string {
+            const length = amountStr.length
+            /*
+             * The headline is sized for two constraints, not one.
+             *
+             * Digit count still shrinks it, as before. The viewport height now
+             * does too: this inline style lands on the element directly, so it
+             * beats the responsive text-* classes in the markup. A flat 72px
+             * therefore made the display the tallest band on a short phone and
+             * pushed the keypad and Pay button off the single screen the
+             * terminal is meant to occupy.
+             */
+            const viewportHeight = window.innerHeight
+            const baseSize = viewportHeight < 600 ? 44 : viewportHeight < 700 ? 54 : 72
+            const reduction = Math.max(0, (length - 4) * 8)
+            return `${Math.max(28, baseSize - reduction)}px`
+        }
+
+        function getCalculationText(): string {
+            const displayed = parseFloat(amountStr) / 100 || 0  // Convert cents to dollars
+            const base = baseAmount + displayed
+            const afterDiscount = base * (1 - discountPercent / 100)
+            let calc = formatCurrency(base, false)
+
+            if (discountPercent > 0) {
+                calc += ` - ${formatCurrency(base * discountPercent / 100, true)} (${discountPercent}%)`
+            }
+            if (tipPercent > 0) {
+                calc += ` + ${formatCurrency(afterDiscount * tipPercent / 100, true)} (${tipPercent}%)`
+            }
+            return calc
+        }
+
+        function updateDOM() {
+            app?.dispatchEvent(new CustomEvent('stateupdate', {
+                detail: {
+                    amountStr,
+                    discountPercent,
+                    tipPercent,
+                    baseAmount,
+                    total: calculateTotal(),
+                    activeMode,
+                    hasBaseAmount,
+                    fontSize: getDynamicFontSize(amountStr),
+                    calculation: getCalculationText()
+                },
+                bubbles: true,
+                composed: true
+            }))
+
+            const total = calculateTotal()
+            /*
+             * The Pay button is enabled as soon as there is anything to charge,
+             * whether it was typed on the display or accumulated with +. The
+             * hasBaseAmount flag alone was not enough, because a sale can be
+             * entered entirely on the display without pressing + first.
+             *
+             * A total below the lowest route minimum is ALSO not payable: no
+             * accepted asset can cover it, so the sale is refused here rather
+             * than after the customer has chosen a payment method.
+             */
+            const belowMinimum = total > 0 && lowestMinimumUsd !== null && total < lowestMinimumUsd
+            /*
+             * The button reads "Pay Now" when there is nothing to charge and
+             * "Complete Sale" once there is. They are the same control, as at a
+             * real register: the drawer face above it shows the running amount
+             * and this finalises the sale.
+             */
+            chargeBtn!.textContent = belowMinimum
+                ? `Below minimum ${formatCurrency(lowestMinimumUsd!)}`
+                : (total > 0 ? `Complete Sale ${formatCurrency(total)}` : 'Pay Now')
+            ;(chargeBtn! as HTMLButtonElement).disabled = total <= 0 || belowMinimum
+            /*
+             * Show the floor on the amount screen whenever it is known. It is
+             * shown even when the current total clears it, because the clerk
+             * needs the figure before ringing up a small sale.
+             */
+            if (posMinimumUsd) {
+                posMinimumUsd.textContent = lowestMinimumUsd === null
+                    ? '—'
+                    : formatCurrency(lowestMinimumUsd)
+            }
+            if (posMinimumAssets) {
+                posMinimumAssets.textContent = minimumAssetSummary
+            }
+
+            /*
+             * Drive the cash register from the same total as the Pay button.
+             *
+             * Both read calculateTotal(), so the drawer face and the button can
+             * never quote different figures for one sale.
+             */
+            if (registerEl) {
+                const showRegister = total > 0 || baseAmount > 0
+                registerEl.classList.toggle('hidden', !showRegister)
+                registerEl.classList.toggle('flex', showRegister)
+                if (registerTotal) registerTotal.textContent = formatCurrency(total)
+            }
+
+            /*
+             * Hide the floor once a figure has been keyed in.
+             *
+             * Before that it is the most useful number on the screen, because
+             * it decides whether a sale can be taken at all. Afterwards the
+             * running total is, and the two competed for the same space. It
+             * returns when the entry is cleared, so the figure is never lost:
+             * a clerk who clears a mistyped amount gets the floor back.
+             */
+            if (posMinimum && lowestMinimumUsd !== null) {
+                const hasEntry = parseFloat(amountStr) > 0 || baseAmount > 0
+                posMinimum.classList.toggle('hidden', hasEntry)
+                posMinimum.classList.toggle('flex', !hasEntry)
+            }
+        }
+
+        /*
+         * Open the drawer for a completed sale.
+         *
+         * The lid slides up out of the drawer face and the tray of notes is
+         * revealed underneath, so the register reads as OPEN rather than as a
+         * button that flashed. It is reset by closeRegister() when the next
+         * sale begins or the checkout is dismissed.
+         */
+        function pumpRegister() {
+            registerDrawer?.classList.add('border-emerald-500')
+            if (registerLid) registerLid.classList.add('-translate-y-full')
+            if (registerLabel) {
+                registerLabel.textContent = 'Open'
+                registerLabel.classList.add('text-emerald-600', 'dark:text-emerald-400')
+            }
+        }
+
+        function closeRegister() {
+            registerDrawer?.classList.remove('border-emerald-500')
+            if (registerLid) registerLid.classList.remove('-translate-y-full')
+            if (registerLabel) {
+                registerLabel.textContent = 'Closed'
+                registerLabel.classList.remove('text-emerald-600', 'dark:text-emerald-400')
+            }
+        }
+
+        /*
+         * Confetti and the PAID stamp.
+         *
+         * Drawn on a canvas rather than pulled from a library: it is roughly
+         * thirty lines, it costs no extra download, and it keeps the only
+         * third-party runtime dependency in this page as the QR encoder.
+         *
+         * Respects prefers-reduced-motion by showing the stamp without the
+         * animation, so the confirmation still appears for a user who has
+         * asked the system not to move things.
+         */
+        const CONFETTI_COLORS = ['#10B981', '#3B82F6', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899']
+        let confettiTimer: number | null = null
+
+        function celebrate(amountLabel: string) {
+            if (!paidOverlay) return
+            if (paidAmount) paidAmount.textContent = amountLabel
+            paidOverlay.classList.remove('hidden')
+            paidOverlay.classList.add('flex')
+            /* Commit the start state before animating, as closeMenu() does. */
+            void paidStamp?.offsetHeight
+            paidStamp?.classList.remove('scale-50', '-rotate-12', 'opacity-0')
+            paidStamp?.classList.add('scale-100')
+            const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+            if (!reduced) void runConfetti()
+        }
+
+        function dismissCelebration() {
+            if (!paidOverlay) return
+            /*
+             * confettiTimer holds a requestAnimationFrame id, not a timer id,
+             * so it must be cancelled with cancelAnimationFrame. Clearing it
+             * with clearTimeout would leave the draw loop running against a
+             * hidden canvas for the rest of its two seconds.
+             */
+            if (confettiTimer !== null) {
+                window.cancelAnimationFrame(confettiTimer)
+                confettiTimer = null
+            }
+            paidOverlay.classList.add('hidden')
+            paidOverlay.classList.remove('flex')
+            paidStamp?.classList.add('scale-50', '-rotate-12', 'opacity-0')
+            paidStamp?.classList.remove('scale-100')
+            if (paidConfetti) {
+                const ctx = paidConfetti.getContext('2d')
+                ctx?.clearRect(0, 0, paidConfetti.width, paidConfetti.height)
+            }
+        }
+
+        async function runConfetti() {
+            if (!paidConfetti) return
+            const canvas = paidConfetti
+            const ctx = canvas.getContext('2d')
+            if (!ctx) return
+
+            const dpr = window.devicePixelRatio || 1
+            const w = canvas.clientWidth || window.innerWidth
+            const h = canvas.clientHeight || window.innerHeight
+            canvas.width = Math.floor(w * dpr)
+            canvas.height = Math.floor(h * dpr)
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+
+            const parts = Array.from({ length: 90 }, () => ({
+                x: w * (0.25 + Math.random() * 0.5),
+                y: h * (0.25 + Math.random() * 0.2),
+                vx: (Math.random() - 0.5) * 9,
+                vy: -Math.random() * 9 - 2,
+                size: 5 + Math.random() * 7,
+                color: CONFETTI_COLORS[Math.floor(Math.random() * CONFETTI_COLORS.length)],
+                rot: Math.random() * Math.PI,
+                spin: (Math.random() - 0.5) * 0.3
+            }))
+
+            const gravity = 0.32
+            const started = performance.now()
+
+            function frame(now: number) {
+                const elapsed = now - started
+                ctx.clearRect(0, 0, w, h)
+                for (const p of parts) {
+                    p.vy += gravity
+                    p.x += p.vx
+                    p.y += p.vy
+                    p.rot += p.spin
+                    ctx.save()
+                    ctx.translate(p.x, p.y)
+                    ctx.rotate(p.rot)
+                    ctx.fillStyle = p.color
+                    ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size * 0.6)
+                    ctx.restore()
+                }
+                /* Stop once the last piece has fallen past the fold. */
+                if (elapsed < 2200) {
+                    confettiTimer = window.requestAnimationFrame(frame)
+                } else {
+                    ctx.clearRect(0, 0, w, h)
+                    confettiTimer = null
+                }
+            }
+            confettiTimer = window.requestAnimationFrame(frame)
+        }
+
+        function handleKeyInput(key: string) {
+            if (!['0','1','2','3','4','5','6','7','8','9'].includes(key)) return
+
+            switch(activeMode) {
+                case 'amount':
+                    // CORRECTED DECIMAL LOGIC:
+                    // 5 -> $0.05 (5 cents)
+                    // 5,0 -> $0.50 (50 cents)
+                    // 1,2,3 -> $1.23 (123 cents)
+                    const currentCents = parseInt(amountStr) || 0
+                    const newCents = currentCents * 10 + parseInt(key)
+                    amountStr = newCents.toString()
+                    break
+
+                case 'discount':
+                    const discountNum = parseInt(amountStr) || 0
+                    const newDiscountStr = (discountNum === 0 ? '' : String(discountNum)) + key
+                    const newDiscount = parseInt(newDiscountStr, 10)
+                    if (newDiscount > 100) return
+                    discountPercent = newDiscount
+                    amountStr = String(newDiscount)
+                    break
+
+                case 'tip':
+                    const tipNum = parseInt(amountStr) || 0
+                    const newTipStr = (tipNum === 0 ? '' : String(tipNum)) + key
+                    const newTip = parseInt(newTipStr, 10)
+                    if (newTip > 100) return
+                    tipPercent = newTip
+                    amountStr = String(newTip)
+                    break
+            }
+            updateDOM()
+        }
+
+        function handleClear() {
+            switch(activeMode) {
+                case 'amount':
+                    amountStr = '0'
+                    break
+                case 'discount':
+                    discountPercent = 0
+                    amountStr = '0'
+                    break
+                case 'tip':
+                    tipPercent = 0
+                    amountStr = '0'
+                    break
+            }
+            updateDOM()
+        }
+
+        function handleAdd() {
+            if (activeMode === 'amount' && parseFloat(amountStr) > 0) {
+                baseAmount += parseFloat(amountStr) / 100  // Convert cents to dollars
+                amountStr = '0'
+                hasBaseAmount = true
+            }
+            updateDOM()
+        }
+
+        chargeBtn?.addEventListener('click', () => {
+            const total = calculateTotal()
+            if (total <= 0) {
+                alert('Please enter a valid amount.')
+                return
+            }
+            /*
+             * Refuse a sale no accepted asset can cover. The button is already
+             * disabled in this case; this guards the click itself so the rule
+             * holds even if the button state is stale.
+             */
+            if (lowestMinimumUsd !== null && total < lowestMinimumUsd) {
+                alert(`This sale is below the minimum of ${formatCurrency(lowestMinimumUsd)}.`)
+                return
+            }
+            openCheckout(total)
+
+            // Reset
+            amountStr = '0'
+            discountPercent = 0
+            tipPercent = 0
+            baseAmount = 0
+            hasBaseAmount = false
+            activeMode = 'amount'
+            updateDOM()
+        })
+
+        // Initial update
+        updateDOM()
+
+        /*
+         * Learn the minimum in the background. It is not awaited: the terminal
+         * must be usable immediately, and the banner appears when the figure
+         * arrives. The Pay button is re-evaluated by updateDOM() on arrival.
+         */
+        void loadMinimum()
+
+        // --- CHECKOUT (dashpoint-api) ---
+        //
+        // Calls the dashpoint-api Worker that is routed at /v1 on this same
+        // host. The request is same-origin, so no CORS preflight is involved
+        // for the site itself: the CORS allowlist exists for the storefront and
+        // any other origin that is added later.
+        //
+        // The flow is:
+        //   1. Read the USD total and the DASH price, and convert to duff.
+        //   2. Ask the API for a quote, which returns a deposit address.
+        //   3. Poll the API for the swap status until it settles.
+        //
+        // The DASH payout address is read from the settings saved on /admin for
+        // this device. It is never shown, and never typed at the counter: it is
+        // passed to the API so the destination is the merchant's own address.
+        // The API holds no address of its own, so a terminal with no setting
+        // here cannot take a payment and is prompted to set one.
+        //
+        // Refunds are decided by the API, not by the browser, so no
+        // customer-facing refund address is collected.
+
+        const DASH_DECIMALS = 8
+        const DASH_ATOM = Math.pow(10, DASH_DECIMALS)
+
+        // The key /admin writes. Read here so the two pages share one setting.
+        const CONFIG_STORAGE_KEY = 'dashpoint.config.v1'
+
+        /*
+         * paint the store name once the key above has been initialised.
+         *
+         * applyStoreName() reads CONFIG_STORAGE_KEY, and a `const` binding is
+         * in its temporal dead zone until this line runs, so the call cannot
+         * sit with the other start-up work above it.
+         */
+        applyStoreName()
+
+        /*
+         * Repaint when another tab writes the config, which is how a name
+         * saved on /admin reaches an already-open terminal. The `storage`
+         * event fires only in OTHER documents, so the /admin tab triggers it
+         * here without this tab painting over its own write.
+         */
+        window.addEventListener('storage', (event) => {
+            if (event.key === null || event.key === CONFIG_STORAGE_KEY) applyStoreName()
+        })
+
+        // Read the payout address saved on /admin for this device. Held in a
+        // variable and sent with the quote; never written into the page.
+        function storedPayoutAddress(): string {
+            try {
+                const raw = JSON.parse(localStorage.getItem(CONFIG_STORAGE_KEY) || '{}')
+                return typeof raw.destinationAddress === 'string' ? raw.destinationAddress.trim() : ''
+            } catch {
+                return ''
+            }
+        }
+
+        /*
+         * Read the confirmation threshold saved on /admin for this device.
+         *
+         * ZERO MEANS UNLIMITED: a sale of any size completes as soon as the
+         * deposit is detected, which is the default. A value above zero makes
+         * sales above that figure wait for the payout to be broadcast.
+         *
+         * This page does not import the config module, so the value is read
+         * from the same key that /admin writes and coerced here. A corrupt or
+         * unreadable entry falls back to 0, so it can never stall a sale.
+         */
+        function storedConfirmThresholdUsd(): number {
+            try {
+                const raw = JSON.parse(localStorage.getItem(CONFIG_STORAGE_KEY) || '{}')
+                const value = Number(raw.confirmThresholdUsd)
+                return Number.isFinite(value) && value > 0 ? value : 0
+            } catch {
+                return 0
+            }
+        }
+
+        const checkoutPanel = document.getElementById('checkout-panel')
+        const checkoutClose = document.getElementById('checkout-close')
+        /*
+         * The payment method is a pair of buttons plus a search box rather than
+         * a <select>. checkoutAssetId holds the chosen id, which is what the
+         * quote sends; no element carries it directly.
+         */
+        const checkoutPopular = document.getElementById('checkout-popular')
+        const checkoutAssetSearch = document.getElementById('checkout-asset-search') as HTMLInputElement | null
+        const checkoutAssetResults = document.getElementById('checkout-asset-results')
+        const checkoutAssetSelectedLabel = document.getElementById('checkout-asset-selected-label')
+        const checkoutAssetSelectedIcon = document.getElementById('checkout-asset-selected-icon')
+        const checkoutQuoteBtn = document.getElementById('checkout-quote') as HTMLButtonElement | null
+        const checkoutError = document.getElementById('checkout-error')
+        const checkoutSetup = document.getElementById('checkout-setup')
+        const checkoutMinimum = document.getElementById('checkout-minimum')
+        const checkoutMinimumUsd = document.getElementById('checkout-minimum-usd')
+        const checkoutMinimumAsset = document.getElementById('checkout-minimum-asset')
+        const checkoutResult = document.getElementById('checkout-result')
+        const checkoutAmount = document.getElementById('checkout-amount')
+        const checkoutAmountSymbol = document.getElementById('checkout-amount-symbol')
+        const checkoutAmountUsd = document.getElementById('checkout-amount-usd')
+        const checkoutQrWrap = document.getElementById('checkout-qr-wrap')
+        const checkoutQr = document.getElementById('checkout-qr') as HTMLCanvasElement | null
+        const checkoutDeposit = document.getElementById('checkout-deposit')
+        const checkoutMemoWrap = document.getElementById('checkout-memo-wrap')
+        const checkoutMemo = document.getElementById('checkout-memo')
+        const checkoutStatus = document.getElementById('checkout-status')
+
+        /* The currently chosen payment method id, or '' when none is chosen. */
+        let checkoutAssetId = ''
+
+        // The origin assets, loaded once from the API.
+        let originAssets: Array<{ id: string; label: string; blockchain: string; decimals: number; symbol: string }> = []
+
+        // The asset to reselect once the list arrives, from the last checkout.
+        let restoredAssetId = ''
+
+        // DASH is the destination. Its decimals are fixed at 8, so a duff amount
+        // from the API is converted to DASH by dividing by 1e8.
+        const DASH_ATOM_FOR_MIN = 1e8
+
+        // The active swap, kept so the poller can stop and the UI can restore it.
+        let activeQuote: any = null
+        let pollTimer: number | null = null
+
+        // The dollar total captured when Pay Now was pressed.
+        let checkoutTotal = 0
+
+        // Remember the merchant's payout address between checkouts on this
+        // device. This is convenience only: localStorage is never the source of
+        // truth for a payout, and the API has its own configured address, so
+        // clearing it is harmless.
+        const CHECKOUT_STORAGE_KEY = 'dashpoint.checkout.v1'
+
+        /*
+         * Remember the last asset the clerk chose, so a busy counter does not
+         * have to reselect it for every sale. The payout address is no longer
+         * stored here: it is fixed by the API and is never entered on this page.
+         */
+        function loadCheckoutPrefs(): { originAsset?: string } {
+            try {
+                return JSON.parse(localStorage.getItem(CHECKOUT_STORAGE_KEY) || '{}')
+            } catch {
+                return {}
+            }
+        }
+
+        function saveCheckoutPrefs() {
+            try {
+                const prefs = loadCheckoutPrefs()
+                prefs.originAsset = checkoutAssetId || prefs.originAsset
+                localStorage.setItem(CHECKOUT_STORAGE_KEY, JSON.stringify(prefs))
+            } catch {
+                // Storage can be unavailable (private mode). Not fatal.
+            }
+        }
+
+        /*
+         * Whether the terminal can deliver funds at all.
+         *
+         * False when this device has no payout address saved. That is the only
+         * source for the address, so there is no server state to wait on and
+         * the setup prompt is driven entirely from the local check.
+         */
+        let terminalReady: boolean | null = null
+
+        function setSetupPromptVisible(visible: boolean) {
+            if (!checkoutSetup) return
+            checkoutSetup.classList.toggle('hidden', !visible)
+            checkoutSetup.classList.toggle('flex', visible)
+        }
+
+        /*
+         * Whether the terminal can deliver funds.
+         *
+         * The payout address is supplied by the merchant on every quote and
+         * held nowhere else, so readiness is exactly whether this device has
+         * one. The check is local and synchronous in effect: asking the server
+         * would be asking a Worker that by design does not know the answer, and
+         * a server-wide "ready" would mask a terminal that had none set.
+         */
+        async function refreshTerminalReadiness() {
+            const local = storedPayoutAddress()
+            terminalReady = local ? true : false
+            setSetupPromptVisible(terminalReady === false)
+            syncQuoteButton()
+        }
+
+        /* The quote button mirrors the readiness prompt. */
+        function syncQuoteButton() {
+            if (!checkoutQuoteBtn) return
+            checkoutQuoteBtn.disabled = terminalReady === false
+            checkoutQuoteBtn.textContent = terminalReady === false ? 'Terminal not configured' : 'Make Payment'
+        }
+
+        /*
+         * Read the lowest payable amount and show it on the amount screen.
+         *
+         * The floor is measured by the API, which probes every route because
+         * 1Click publishes no minimum anywhere: the only way to learn it is a
+         * refusal. The API reports the LOWEST floor together with every asset
+         * that reaches it, because a sale is payable when any one accepted
+         * asset can cover it, and names them so the clerk can see the sale is
+         * still payable in another currency.
+         *
+         * This is best-effort. A failure leaves the banner hidden and the Pay
+         * button behaves as before, so an unreachable API degrades to the
+         * previous behaviour rather than blocking every sale.
+         */
+        async function loadMinimum() {
+            try {
+                const data = await apiFetch('/v1/minimum')
+                /*
+                 * Only a finite positive number is a floor. A missing price
+                 * arrives as null and must stay null rather than becoming 0.
+                 */
+                lowestMinimumUsd = Number.isFinite(data?.minimumUsd) && data.minimumUsd > 0
+                    ? Number(data.minimumUsd)
+                    : null
+
+                const symbols: string[] = Array.from(
+                    new Set((data?.assets ?? []).map((asset: any) => String(asset.symbol)))
+                )
+                minimumAssetSummary = symbols.length > 0
+                    ? `payable in ${symbols.join(', ')}`
+                    : ''
+
+                if (posMinimum) {
+                    posMinimum.classList.remove('hidden')
+                    posMinimum.classList.add('flex')
+                }
+                updateDOM()
+            } catch {
+                /* Leave the banner hidden; the checkout path reports failures. */
+                lowestMinimumUsd = null
+                minimumAssetSummary = ''
+            }
+        }
+
+        function usdToDuff(usd: number, dashPrice: number): string {
+            if (!dashPrice || dashPrice <= 0) return '0'
+            const dash = usd / dashPrice
+            // Round to the nearest duff. Math.round on a float this size is exact
+            // enough because duff is the smallest unit and the value is far below
+            // the safe integer limit.
+            return Math.round(dash * DASH_ATOM).toString()
+        }
+
+        function showCheckoutError(message: string) {
+            if (!checkoutError) return
+            checkoutError.textContent = message
+            checkoutError.classList.remove('hidden')
+        }
+
+        /*
+         * Show the minimum in dollars, and hide it when there is none.
+         *
+         * The API converts 1Click's base-unit floor into a USD figure, because
+         * the raw number in the upstream message is DASH duff and is meaningless
+         * to a customer at a counter.
+         */
+        function showMinimum(minimumUsd: number | null, assetSymbol?: string, minimumAsset?: string) {
+            if (!checkoutMinimum) return
+            if (minimumUsd === null || !Number.isFinite(minimumUsd)) {
+                checkoutMinimum.classList.add('hidden')
+                checkoutMinimum.classList.remove('flex')
+                return
+            }
+            if (checkoutMinimumUsd) {
+                checkoutMinimumUsd.textContent = `$${minimumUsd.toFixed(2)}`
+            }
+            if (checkoutMinimumAsset) {
+                /*
+                 * Name the origin asset so the figure is unambiguous, and the
+                 * equivalent in that asset when the API supplies it.
+                 */
+                const parts: string[] = []
+                if (minimumAsset) parts.push(minimumAsset)
+                if (assetSymbol) parts.push(`paid in ${assetSymbol}`)
+                checkoutMinimumAsset.textContent = parts.join(' — ')
+            }
+            checkoutMinimum.classList.remove('hidden')
+            checkoutMinimum.classList.add('flex')
+        }
+
+        function clearMinimum() {
+            showMinimum(null)
+        }
+
+        function clearCheckoutError() {
+            if (!checkoutError) return
+            checkoutError.textContent = ''
+            checkoutError.classList.add('hidden')
+        }
+
+        // Fetch JSON and surface the server's error message on failure.
+        async function apiFetch(path: string, init?: RequestInit): Promise<any> {
+            const response = await fetch(path, init)
+            const text = await response.text()
+            let body: any = null
+            try {
+                body = JSON.parse(text)
+            } catch {
+                body = { error: text }
+            }
+            if (!response.ok) {
+                /*
+                 * The parsed body is attached so a caller can read structured
+                 * detail, such as the minimum for this route, rather than only
+                 * the sentence meant for a human.
+                 */
+                const error = new Error(body?.error || `Request failed with ${response.status}`) as Error & { body?: any }
+                error.body = body
+                throw error
+            }
+            return body
+        }
+
+        /*
+         * Brand marks for the common chains, drawn inline as SVG.
+         *
+         * A payment method is recognised by its logo long before its ticker is
+         * read, so each button carries one. Unknown assets fall back to a
+         * monogram rather than a blank box, so a newly listed chain still has a
+         * stable, recognisable shape.
+         */
+        const BRAND_COLORS: Record<string, string> = {
+            eth: '#627EEA', 'eth-base': '#0052FF', 'usdc-eth': '#2775CA',
+            'usdc-sol': '#2775CA', 'usdc-base': '#2775CA', 'usdc-arb': '#28A0F0',
+            'usdc-op': '#FF0420', 'usdc-avax': '#E84142', 'usdt-eth': '#26A17B',
+            btc: '#F7931A', sol: '#9945FF', ltc: '#345D9D', doge: '#C2A633',
+            xrp: '#23292F', dash: '#008CE7'
+        }
+
+        function assetIcon(id: string, symbol: string, size: number): string {
+            const color = BRAND_COLORS[id] || '#64748B'
+            const initial = (symbol || '?').slice(0, 1).toUpperCase()
+            return `<svg width="${size}" height="${size}" viewBox="0 0 32 32" aria-hidden="true">`
+                + `<circle cx="16" cy="16" r="16" fill="${color}"/>`
+                + `<text x="16" y="16" text-anchor="middle" dominant-baseline="central" `
+                + `font-family="system-ui,sans-serif" font-size="14" font-weight="700" fill="#fff">${initial}</text>`
+                + `</svg>`
+        }
+
+        /*
+         * A small, fixed set of methods a counter sees most often.
+         * These are shown as buttons at all times, so the common case never
+         * needs the search box. Ids missing from the loaded list are skipped.
+         */
+        const POPULAR_ASSET_IDS = ['dash', 'btc', 'eth', 'usdc-eth', 'sol', 'usdc-sol', 'ltc']
+
+        function assetById(id: string) {
+            return originAssets.find((a) => a.id === id)
+        }
+
+        /* Reflect the chosen method in the Selected row. */
+        function paintSelectedAsset() {
+            const asset = assetById(checkoutAssetId)
+            if (checkoutAssetSelectedLabel) {
+                checkoutAssetSelectedLabel.textContent = asset
+                    ? `${asset.label} (${asset.symbol})`
+                    : 'None chosen yet'
+            }
+            if (checkoutAssetSelectedIcon) {
+                checkoutAssetSelectedIcon.innerHTML = asset ? assetIcon(asset.id, asset.symbol, 28) : ''
+            }
+        }
+
+        /* Choose a method and clear any floor left over from the previous one. */
+        function selectAsset(id: string) {
+            checkoutAssetId = id
+            paintSelectedAsset()
+            saveCheckoutPrefs()
+            /* A new asset has its own floor, so a stale minimum must not linger. */
+            clearMinimum()
+        }
+
+        function assetButton(asset: { id: string; label: string; symbol: string }): HTMLButtonElement {
+            const button = document.createElement('button')
+            button.type = 'button'
+            button.dataset.assetId = asset.id
+            button.className = 'flex items-center gap-2 rounded-xl border border-slate-300 dark:border-slate-600 '
+                + 'bg-white dark:bg-slate-900 px-3 py-2 text-left text-sm font-semibold hover:border-blue-500 '
+                + 'hover:bg-blue-50 dark:hover:bg-blue-950/40 transition-colors'
+            button.innerHTML = `<span class="shrink-0">${assetIcon(asset.id, asset.symbol, 24)}</span>`
+                + `<span class="truncate">${asset.symbol}</span>`
+            button.title = asset.label
+            button.addEventListener('click', () => selectAsset(asset.id))
+            return button
+        }
+
+        /*
+         * Render the search results.
+         *
+         * Matching is on the human label, the ticker and the chain id, so both
+         * "solana" and "SOL" find the same entry.
+         */
+        function renderAssetResults(query: string) {
+            if (!checkoutAssetResults) return
+            const needle = query.trim().toLowerCase()
+            checkoutAssetResults.innerHTML = ''
+            if (!needle) {
+                checkoutAssetResults.classList.add('hidden')
+                checkoutAssetResults.classList.remove('flex')
+                return
+            }
+            const matches = originAssets.filter((a) =>
+                a.label.toLowerCase().includes(needle)
+                || a.symbol.toLowerCase().includes(needle)
+                || a.id.toLowerCase().includes(needle)
+            )
+            if (matches.length === 0) {
+                const empty = document.createElement('div')
+                empty.className = 'text-sm text-slate-500 dark:text-slate-400 px-1 py-2'
+                empty.textContent = 'No payment method matches that search.'
+                checkoutAssetResults.appendChild(empty)
+            }
+            for (const asset of matches) {
+                const row = document.createElement('button')
+                row.type = 'button'
+                row.className = 'flex items-center gap-3 rounded-xl border border-slate-300 dark:border-slate-600 '
+                    + 'bg-white dark:bg-slate-900 px-3 py-2 text-left hover:border-blue-500 '
+                    + 'hover:bg-blue-50 dark:hover:bg-blue-950/40 transition-colors'
+                row.innerHTML = `<span class="shrink-0">${assetIcon(asset.id, asset.symbol, 28)}</span>`
+                    + `<span class="flex flex-col"><span class="text-sm font-bold">${asset.label}</span>`
+                    + `<span class="text-xs text-slate-500 dark:text-slate-400">${asset.symbol} · ${asset.blockchain}</span></span>`
+                row.addEventListener('click', () => {
+                    selectAsset(asset.id)
+                    if (checkoutAssetSearch) checkoutAssetSearch.value = ''
+                    renderAssetResults('')
+                })
+                checkoutAssetResults.appendChild(row)
+            }
+            checkoutAssetResults.classList.remove('hidden')
+            checkoutAssetResults.classList.add('flex')
+        }
+
+        // Populate the payment-method buttons and search.
+        async function loadAssets() {
+            if (!checkoutPopular) return
+            try {
+                const data = await apiFetch('/v1/assets')
+                originAssets = data.assets || []
+                checkoutPopular.innerHTML = ''
+                for (const id of POPULAR_ASSET_IDS) {
+                    const asset = assetById(id)
+                    if (asset) checkoutPopular.appendChild(assetButton(asset))
+                }
+                /*
+                 * Reselect the asset the clerk used last, so a busy counter does
+                 * not have to pick it again. Fall back to BTC, then to the first
+                 * entry, so a method is never left unchosen.
+                 */
+                const preferred = assetById(restoredAssetId)
+                    || assetById('btc')
+                    || originAssets[0]
+                if (preferred) selectAsset(preferred.id)
+            } catch (error: any) {
+                showCheckoutError(`Could not load payment methods: ${error.message}`)
+            }
+        }
+
+        function openCheckout(total: number) {
+            checkoutTotal = total
+            clearCheckoutError()
+            if (checkoutResult) {
+                checkoutResult.classList.add('hidden')
+                checkoutResult.classList.remove('flex')
+            }
+            if (checkoutDeposit) checkoutDeposit.textContent = ''
+            if (checkoutAmount) checkoutAmount.textContent = ''
+            if (checkoutAmountSymbol) checkoutAmountSymbol.textContent = ''
+            if (checkoutAmountUsd) checkoutAmountUsd.textContent = ''
+            if (checkoutStatus) checkoutStatus.textContent = ''
+            if (checkoutQrWrap) {
+                checkoutQrWrap.classList.add('hidden')
+                checkoutQrWrap.classList.remove('flex')
+            }
+            if (checkoutAssetSearch) checkoutAssetSearch.value = ''
+            renderAssetResults('')
+            if (checkoutMemoWrap) {
+                checkoutMemoWrap.classList.add('hidden')
+                checkoutMemoWrap.classList.remove('flex')
+            }
+            setSetupPromptVisible(false)
+            clearMinimum()
+            /*
+             * A new sale starts with the drawer shut and no confetti left over
+             * from the previous one, so the celebration only ever belongs to
+             * the sale in progress.
+             */
+            closeRegister()
+            dismissCelebration()
+
+            // Restore the asset the clerk last used, if any.
+            const prefs = loadCheckoutPrefs()
+            restoredAssetId = prefs.originAsset || ''
+
+            checkoutPanel?.classList.remove('hidden')
+            void loadAssets()
+            /*
+             * Check readiness after the panel is visible so the prompt appears
+             * in place rather than after a flash of the payment form.
+             */
+            void refreshTerminalReadiness()
+        }
+
+        function closeCheckout() {
+            checkoutPanel?.classList.add('hidden')
+            stopPolling()
+            /*
+             * A dismissed payment leaves the register shut. The sale did not
+             * complete, so the drawer must not stay open behind the panel and
+             * then be discovered on the next sale.
+             */
+            closeRegister()
+            dismissCelebration()
+        }
+
+        function stopPolling() {
+            if (pollTimer !== null) {
+                window.clearTimeout(pollTimer)
+                pollTimer = null
+            }
+        }
+
+        // Request a total and render the payment instructions.
+        async function requestQuote() {
+            if (!checkoutQuoteBtn || !checkoutAssetId) return
+            clearCheckoutError()
+            clearMinimum()
+
+            if (terminalReady === false) {
+                showCheckoutError('This terminal has no DASH payout address configured.')
+                return
+            }
+
+            checkoutQuoteBtn.disabled = true
+            checkoutQuoteBtn.textContent = 'Checking rate...'
+
+            try {
+                // Price the sale in DASH using the API's own price source.
+                const priceData = await apiFetch('/v1/price')
+                const duff = usdToDuff(checkoutTotal, priceData.price)
+                if (duff === '0') {
+                    throw new Error('The DASH price is unavailable, so the amount cannot be calculated.')
+                }
+
+                checkoutQuoteBtn.textContent = 'Getting total...'
+
+                /*
+                 * The destination is required: the API holds no payout address
+                 * of its own, so it must arrive with the request. It comes from
+                 * the settings saved on /admin for this device, is not shown,
+                 * and cannot be edited here. The readiness check above means
+                 * this value is present by the time a quote is attempted.
+                 */
+                const destinationAddress = storedPayoutAddress()
+                const quote = await apiFetch('/v1/quote', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        originAsset: checkoutAssetId,
+                        amount: duff,
+                        destinationAddress
+                    })
+                })
+
+                activeQuote = quote
+                saveCheckoutPrefs()
+                renderQuote(quote, priceData.price)
+            } catch (error: any) {
+                /*
+                 * A too-low sale is reported with the floor the API worked out.
+                 * apiFetch keeps the parsed body on the error so the dollar
+                 * figure and the asset equivalent can be shown at display size
+                 * instead of the raw base-unit number from upstream.
+                 */
+                if (error?.body?.minimumUsd !== undefined) {
+                    showMinimum(
+                        Number(error.body.minimumUsd),
+                        error.body.originSymbol,
+                        error.body.minimumOriginFormatted
+                    )
+                    showCheckoutError('This sale is below the minimum for the selected payment method.')
+                } else {
+                    showCheckoutError(error.message)
+                }
+            } finally {
+                checkoutQuoteBtn.disabled = false
+                checkoutQuoteBtn.textContent = 'Make Payment'
+            }
+        }
+
+        // Render the deposit instructions for a quote.
+        function renderQuote(quote: any, dashPrice: number) {
+            if (checkoutResult) {
+                checkoutResult.classList.remove('hidden')
+                checkoutResult.classList.add('flex')
+            }
+            /*
+             * Name the asset beside the figure. The amount alone left the
+             * customer to remember which coin they had chosen, while the
+             * deposit address below is chain-specific and differs per method.
+             */
+            /*
+             * Show the amount to send, not the raw quote input.
+             *
+             * Some origin chains print more decimals than the wallet accepts
+             * (Solana has 9), so the server returns payAmountFormatted rounded
+             * UP to 8 decimals. Falling back to amountInFormatted keeps an
+             * older API response renderable.
+             */
+            if (checkoutAmount) {
+                checkoutAmount.textContent = `${quote.payAmountFormatted || quote.amountInFormatted}`
+            }
+            if (checkoutAmountSymbol) {
+                checkoutAmountSymbol.textContent = quote.originSymbol || ''
+            }
+            if (checkoutAmountUsd) {
+                checkoutAmountUsd.textContent = `≈ $${Number(quote.amountInUsd).toFixed(2)} USD — you receive ${Number(quote.amountOutFormatted).toFixed(8)} DASH ($${(Number(quote.amountOut) / DASH_ATOM * dashPrice).toFixed(2)})`
+            }
+            if (checkoutDeposit) {
+                checkoutDeposit.textContent = quote.depositAddress
+            }
+            void renderQr(quote)
+            if (quote.depositMemo) {
+                if (checkoutMemo) checkoutMemo.textContent = quote.depositMemo
+                if (checkoutMemoWrap) {
+                    checkoutMemoWrap.classList.remove('hidden')
+                    checkoutMemoWrap.classList.add('flex')
+                }
+            }
+            /*
+             * The quote signature is verified server-side on every quote and a
+             * failure is already reported as an error, so it is not surfaced:
+             * a customer cannot act on it and it only competes with the amount.
+             */
+
+            // Begin watching for the deposit.
+            startPolling(quote.depositAddress, quote.depositMemo)
+        }
+
+        /*
+         * Draw the deposit as a QR code above the address.
+         *
+         * A customer scans first and types only as a fallback, so the scannable
+         * form leads. The payload is a payment URI when the asset has a scheme,
+         * so a wallet that understands it fills in the amount as well as the
+         * address; otherwise it is the bare address. Everything is drawn
+         * locally on a canvas; nothing is sent to a third-party image service.
+         */
+        async function renderQr(quote: any) {
+            if (!checkoutQr || !checkoutQrWrap) return
+            const address = String(quote.depositAddress || '')
+            if (!address) return
+            /*
+             * 1Click reports short chain codes (btc, eth, sol, base, arb,
+             * op, avax, pol, tron), so the map is keyed on those. Every EVM
+             * chain shares the ethereum scheme because the address shape is
+             * identical. Listing each one keeps a payable route (usdc-avax is
+             * at the payment floor) from falling back to a bare address, which
+             * a wallet cannot route to a chain.
+             *
+             * Tron has no widely honoured payment-URI scheme, so it stays on
+             * the bare-address fallback deliberately rather than by omission.
+             */
+            const chain = String(quote.originBlockchain || '').toLowerCase()
+            const schemes: Record<string, string> = {
+                dash: 'dash', btc: 'bitcoin', ltc: 'litecoin', doge: 'dogecoin',
+                sol: 'solana', xrp: 'xrp',
+                eth: 'ethereum', base: 'ethereum', arb: 'ethereum',
+                op: 'ethereum', avax: 'ethereum', pol: 'ethereum'
+            }
+            const scheme = schemes[chain]
+            const uri = scheme
+                ? `${scheme}:${address}${quote.depositMemo ? `?memo=${encodeURIComponent(quote.depositMemo)}` : ''}`
+                : address
+            try {
+                const QR = await import('qrcode')
+                await QR.toCanvas(checkoutQr, uri, { width: 208, margin: 1, errorCorrectionLevel: 'M' })
+                checkoutQrWrap.classList.remove('hidden')
+                checkoutQrWrap.classList.add('flex')
+            } catch {
+                /* A missing QR is not fatal: the address is still shown below. */
+                checkoutQrWrap.classList.add('hidden')
+                checkoutQrWrap.classList.remove('flex')
+            }
+        }
+
+        // Poll the swap status until it reaches a terminal state.
+        function startPolling(depositAddress: string, depositMemo?: string) {
+            stopPolling()
+            const terminal = ['SUCCESS', 'REFUNDED', 'FAILED']
+
+            /*
+             * The earliest state that means the money is in.
+             *
+             * 1Click publishes no separate confirmation state: the enum is
+             * PENDING_DEPOSIT, KNOWN_DEPOSIT_TX, PROCESSING, SUCCESS and the
+             * three failures. KNOWN_DEPOSIT_TX is documented as "Deposit
+             * transaction detected", so by the time it is reported the origin
+             * chain has already accepted and mined the transfer. Waiting past
+             * it is a policy choice about risk, not a technical requirement,
+             * which is exactly what the threshold setting exists to express.
+             */
+            const DETECTED = 'KNOWN_DEPOSIT_TX'
+            const SETTLED = 'SUCCESS'
+
+            /*
+             * The dollar value of THIS sale, not the running display: the sale
+             * may have been part-paid with + before Pay Now was pressed.
+             */
+            const threshold = storedConfirmThresholdUsd()
+            const mustWait = threshold > 0 && checkoutTotal > threshold
+
+            /*
+             * Fire the celebration once per swap.
+             *
+             * Polling is a loop, so the detected state is seen on several
+             * consecutive ticks. Without this flag the confetti would restart
+             * every ten seconds until the swap settled.
+             */
+            let announced = false
+
+            const announce = () => {
+                announced = true
+                pumpRegister()
+                celebrate(formatCurrency(checkoutTotal))
+            }
+
+            const tick = async () => {
+                try {
+                    const params = new URLSearchParams({ depositAddress })
+                    if (depositMemo) params.set('depositMemo', depositMemo)
+                    const state = await apiFetch(`/v1/status?${params.toString()}`)
+                    if (checkoutStatus) {
+                        checkoutStatus.textContent = statusLabel(state.status)
+                    }
+
+                    /*
+                     * A refund or a failure is the end of this sale, whatever
+                     * the amount: it must never be celebrated, and the wait for
+                     * a settlement that will not arrive has to be abandoned.
+                     */
+                    const failed = state.status === 'REFUNDED' || state.status === 'FAILED'
+                    if (failed) {
+                        stopPolling()
+                        return
+                    }
+
+                    if (!announced && state.status === DETECTED) {
+                        /*
+                         * Below the threshold the sale is done here. At or
+                         * above it the clerk is told the deposit landed but
+                         * the payout is still in flight, and the poller keeps
+                         * running until SUCCESS.
+                         */
+                        if (!mustWait) announce()
+                    }
+
+                    if (state.status === SETTLED) {
+                        if (!announced) announce()
+                        stopPolling()
+                        return
+                    }
+
+                    if (terminal.includes(state.status)) {
+                        stopPolling()
+                        return
+                    }
+                } catch (error: any) {
+                    // A status lookup failure is not fatal: keep the payment
+                    // instructions on screen and try again.
+                    if (checkoutStatus) checkoutStatus.textContent = `Status unavailable: ${error.message}`
+                }
+                pollTimer = window.setTimeout(tick, 10000)
+            }
+
+            tick()
+        }
+
+        // Human wording for a swap state.
+        function statusLabel(status: string): string {
+            switch (status) {
+                case 'KNOWN_DEPOSIT_TX': return 'Deposit detected, waiting for confirmation...'
+                case 'PENDING_DEPOSIT': return 'Waiting for your payment...'
+                case 'INCOMPLETE_DEPOSIT': return 'Deposit received is below the required amount.'
+                case 'PROCESSING': return 'Payment received. Sending DASH...'
+                case 'SUCCESS': return 'Payment complete.'
+                case 'REFUNDED': return 'The swap was refunded to the merchant refund account.'
+                case 'FAILED': return 'The swap failed. Please contact the merchant.'
+                default: return status
+            }
+        }
+
+        checkoutQuoteBtn?.addEventListener('click', () => { void requestQuote() })
+        checkoutClose?.addEventListener('click', closeCheckout)
+        checkoutAssetSearch?.addEventListener('input', () => {
+            renderAssetResults(checkoutAssetSearch.value)
+        })
+
+        // --- PWA ---
+        //
+        // Registers the minimal service worker that makes the terminal
+        // installable and caches the hashed bundle. It is registered from this
+        // page rather than /admin because start_url is /, and an installed app
+        // is the point of sale itself.
+        //
+        // Registration is best-effort: an unsupported browser, or a page not
+        // served over a secure origin, simply does not get an installable app.
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js').catch(() => {
+                    /* Installability is a convenience; never surface this. */
+                })
+            })
+        }
+    </script>
+</body>
+</html>

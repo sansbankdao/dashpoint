@@ -1,0 +1,480 @@
+---
+// src/pages/admin.astro
+
+import '../styles/global.css'
+import { DEFAULT_CONFIG } from '../lib/config'
+
+// Server-rendered defaults. Live values are hydrated from localStorage by the
+// inline script below so the page works on a static host.
+const defaults = DEFAULT_CONFIG
+
+/*
+ * The confirmation threshold is rendered as a STRING.
+ *
+ * Astro omits an attribute whose value is falsy, and the default threshold is
+ * 0, so `value={defaults.confirmThresholdUsd}` produced an input with no value
+ * attribute at all. The field then showed whatever the browser last had, and
+ * an empty box on a fresh device. A string is never omitted, so "0" reaches
+ * the page.
+ */
+const confirmThresholdValue = String(DEFAULT_CONFIG.confirmThresholdUsd)
+---
+
+<!DOCTYPE html>
+<html lang="en" class="h-screen">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Terminal Admin — DashPoint POS</title>
+    <meta name="robots" content="noindex, nofollow" />
+    <meta name="theme-color" content="#2563eb" />
+    <!-- The terminal is installable; start_url is /, not this page. -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+</head>
+<body class="min-h-dvh bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 dark:from-slate-900 dark:via-slate-900 dark:to-indigo-950 text-slate-900 dark:text-slate-100 flex flex-col">
+    <div id="admin-app" class="flex flex-col h-full min-h-screen">
+        <!-- Header -->
+        <header class="bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm border-b border-slate-200 dark:border-slate-700 px-6 py-4 shadow-sm sticky top-0 z-50">
+            <div class="max-w-2xl mx-auto flex items-center justify-between gap-4">
+                <h1 class="text-2xl font-bold">Terminal Admin</h1>
+                <a href="/" class="text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline whitespace-nowrap">
+                    &larr; Back to POS
+                </a>
+            </div>
+        </header>
+
+        <main class="flex-1 px-6 py-8">
+            <form id="admin-form" class="max-w-2xl mx-auto flex flex-col gap-6" novalidate>
+                <!-- Store identity -->
+                <section class="bg-white/90 dark:bg-slate-800/90 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-6 flex flex-col gap-4">
+                    <h2 class="text-lg font-semibold">Store</h2>
+
+                    <div class="flex flex-col gap-1">
+                        <label for="storeName" class="text-sm font-medium text-slate-600 dark:text-slate-300">Store name</label>
+                        <input id="storeName" name="storeName" type="text" maxlength="64"
+                            value={defaults.storeName}
+                            class="rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500" />
+                        <p class="text-xs text-slate-500 dark:text-slate-400">Shown in the POS header and footer.</p>
+                    </div>
+
+                    <div class="flex flex-col gap-1">
+                        <label for="currency" class="text-sm font-medium text-slate-600 dark:text-slate-300">Display currency</label>
+                        <input id="currency" name="currency" type="text" maxlength="8"
+                            value={defaults.currency}
+                            class="rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500" />
+                        <p class="text-xs text-slate-500 dark:text-slate-400">Label only. POS amounts are USD-denominated in this build.</p>
+                    </div>
+
+                    <div class="flex flex-col gap-1">
+                        <label for="tipPresets" class="text-sm font-medium text-slate-600 dark:text-slate-300">Tip presets (%)</label>
+                        <input id="tipPresets" name="tipPresets" type="text" maxlength="48"
+                            value={defaults.tipPresets.join(', ')}
+                            class="rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500" />
+                        <p class="text-xs text-slate-500 dark:text-slate-400">Comma-separated whole numbers between 1 and 100.</p>
+                    </div>
+                </section>
+
+                <!-- Install -->
+                <section class="bg-white/90 dark:bg-slate-800/90 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-6 flex flex-col gap-3">
+                    <h2 class="text-lg font-semibold">Install</h2>
+                    <p class="text-xs text-slate-500 dark:text-slate-400">
+                        Installing adds DashPoint to this device's home screen, where it opens full-screen and
+                        straight to the payment terminal.
+                    </p>
+
+                    <!-- Shown when the browser can prompt directly. -->
+                    <button id="install-btn" type="button"
+                        class="hidden self-start bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-bold py-3 px-6 rounded-xl shadow-lg transition-all duration-200">
+                        Install DashPoint to Home Screen
+                    </button>
+
+                    <!--
+                        Shown when the browser cannot prompt directly. iOS Safari
+                        has no install event, so the only route is the share
+                        sheet, and the user has to be told the steps.
+                    -->
+                    <div id="install-hint" class="hidden rounded-xl border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 p-4 text-xs text-slate-600 dark:text-slate-300 flex-col gap-2">
+                        <p class="font-semibold">To install on this device</p>
+                        <p id="install-hint-ios" class="hidden">
+                            Tap the Share button in Safari, then choose <strong>Add to Home Screen</strong>.
+                        </p>
+                        <p id="install-hint-generic" class="hidden">
+                            Open this page in a browser menu and choose <strong>Install app</strong> or
+                            <strong>Add to Home Screen</strong>.
+                        </p>
+                    </div>
+
+                    <!-- Shown once the app is already running installed. -->
+                    <p id="install-done" class="hidden text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                        DashPoint is installed on this device.
+                    </p>
+                </section>
+
+                <!-- Payouts -->
+                <section class="bg-white/90 dark:bg-slate-800/90 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-6 flex flex-col gap-4">
+                    <h2 class="text-lg font-semibold">Payouts</h2>
+
+                    <div class="flex flex-col gap-1">
+                        <label for="destinationAddress" class="text-sm font-medium text-slate-600 dark:text-slate-300">Your DASH payout address (this device)</label>
+                        <input id="destinationAddress" name="destinationAddress" type="text" maxlength="48" spellcheck="false" autocomplete="off"
+                            placeholder="X…"
+                            value={defaults.destinationAddress}
+                            class="rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-4 py-3 font-mono text-sm outline-none focus:ring-2 focus:ring-blue-500" />
+                        <p id="destinationAddress-status" class="text-xs text-slate-500 dark:text-slate-400">Validated as a Dash mainnet P2PKH address.</p>
+                        <p class="text-xs text-slate-500 dark:text-slate-400">
+                            Used for sales taken on this browser. This is the only place the payout address is
+                            held: the API stores no address of its own, so a terminal with no value saved here
+                            cannot take a payment. The address is sent with each sale and is never shown to the
+                            customer.
+                        </p>
+                    </div>
+
+                    <!-- Settlement -->
+                    <div class="flex flex-col gap-1">
+                        <label for="confirmThresholdUsd" class="text-sm font-medium text-slate-600 dark:text-slate-300">Wait for confirmation above</label>
+                        <input id="confirmThresholdUsd" name="confirmThresholdUsd" type="text" inputmode="decimal" maxlength="12"
+                            value={confirmThresholdValue}
+                            class="rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500" />
+                        <p class="text-xs text-slate-500 dark:text-slate-400">
+                            A dollar figure. Sales at or below it complete as soon as the deposit is detected;
+                            larger sales wait until the DASH payout is broadcast. Leave 0 to treat every sale as
+                            settled on detection, which is the default.
+                        </p>
+                    </div>
+
+                    <!-- Secret key handling -->
+                    <div class="rounded-xl border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/40 p-4 flex flex-col gap-2">
+                        <h3 class="text-sm font-semibold text-amber-900 dark:text-amber-200">Partner key</h3>
+                        <p class="text-xs text-amber-900 dark:text-amber-200">
+                            The 1Click partner JWT is stored server-side in Cloudflare Secrets Store and is never entered,
+                            stored, or transmitted from this page. Quotes made through the API are authenticated
+                            automatically. Do not paste the JWT into this admin page or into any file in this repository:
+                            anything done in a browser is readable by whoever opens the page.
+                        </p>
+                        <p id="key-status" class="text-xs font-medium text-amber-900 dark:text-amber-200"></p>
+                    </div>
+                </section>
+
+                <!-- Actions -->
+                <div class="flex flex-col gap-3">
+                    <div class="flex items-center gap-3">
+                        <button id="save-btn" type="submit"
+                            class="flex-1 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-bold py-4 px-6 rounded-2xl text-lg shadow-xl active:translate-y-0.5 transition-all duration-200">
+                            Save settings
+                        </button>
+                        <button id="reset-btn" type="button"
+                            class="py-4 px-6 rounded-2xl font-semibold border-2 border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-all duration-200">
+                            Reset
+                        </button>
+                    </div>
+                    <p id="status" role="status" aria-live="polite"
+                        class="text-sm text-center min-h-[1.25rem] text-slate-500 dark:text-slate-400"></p>
+                </div>
+            </form>
+        </main>
+
+        <!-- Footer -->
+        <footer class="bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm border-t border-slate-200 dark:border-slate-700 px-6 py-4 mt-auto">
+            <div class="text-center text-sm text-slate-500 dark:text-slate-400">
+                Display settings are stored in this browser only. Payment settings are stored on the server.
+            </div>
+        </footer>
+    </div>
+
+    <script>
+        import { DEFAULT_CONFIG, loadConfig, saveConfig, clearConfig, isValidDashAddress, type PosConfig } from '../lib/config'
+
+        const API_BASE = '/v1'
+
+        const form = document.getElementById('admin-form') as HTMLFormElement
+        const statusEl = document.getElementById('status')!
+        const keyStatusEl = document.getElementById('key-status')!
+        const saveBtn = document.getElementById('save-btn') as HTMLButtonElement
+        const resetBtn = document.getElementById('reset-btn') as HTMLButtonElement
+        const installBtn = document.getElementById('install-btn') as HTMLButtonElement
+        const installHint = document.getElementById('install-hint')!
+        const installHintIos = document.getElementById('install-hint-ios')!
+        const installHintGeneric = document.getElementById('install-hint-generic')!
+        const installDone = document.getElementById('install-done')!
+
+        // `apiKey` is intentionally absent: the partner JWT is a server-side
+        // secret and this page never reads or writes it.
+        const fields: Array<keyof PosConfig> = [
+            'storeName',
+            'currency',
+            'tipPresets',
+            'destinationAddress',
+            'confirmThresholdUsd'
+        ]
+
+        function inputFor(name: keyof PosConfig): HTMLInputElement {
+            return document.getElementById(name) as HTMLInputElement
+        }
+
+        function setStatus(message: string, tone: 'ok' | 'error' | 'muted' = 'muted') {
+            statusEl.textContent = message
+            statusEl.className = 'text-sm text-center min-h-[1.25rem] ' + (
+                tone === 'ok'
+                    ? 'text-green-600 dark:text-green-400'
+                    : tone === 'error'
+                        ? 'text-red-600 dark:text-red-400'
+                        : 'text-slate-500 dark:text-slate-400'
+            )
+        }
+
+        function setAddressStatus(message: string, tone: 'ok' | 'error' | 'muted') {
+            const el = document.getElementById('destinationAddress-status')!
+            el.textContent = message
+            el.className = 'text-xs ' + (
+                tone === 'ok'
+                    ? 'text-green-600 dark:text-green-400'
+                    : tone === 'error'
+                        ? 'text-red-600 dark:text-red-400'
+                        : 'text-slate-500 dark:text-slate-400'
+            )
+        }
+
+        function fillForm(config: PosConfig) {
+            inputFor('storeName').value = config.storeName
+            inputFor('currency').value = config.currency
+            inputFor('tipPresets').value = config.tipPresets.join(', ')
+            inputFor('destinationAddress').value = config.destinationAddress
+            inputFor('confirmThresholdUsd').value = String(config.confirmThresholdUsd)
+        }
+
+        function parseTipPresets(raw: string): number[] | null {
+            const trimmed = raw.trim()
+            if (!trimmed) return null
+
+            const parts = trimmed.split(',').map(part => part.trim()).filter(Boolean)
+            const numbers: number[] = []
+
+            for (const part of parts) {
+                if (!/^\d+$/.test(part)) return null
+                const value = Number(part)
+                if (value < 1 || value > 100) return null
+                numbers.push(value)
+            }
+
+            return numbers.length ? numbers : null
+        }
+
+        /*
+         * Parse the confirmation threshold.
+         *
+         * 0 is a real setting here (do not wait), NOT an empty one, so an empty
+         * box is read as 0 and an unparsable box is refused rather than
+         * silently coerced: a clerk who types "$/5" must be told, because the
+         * alternative is a terminal quietly waiting for the wrong sales.
+         */
+        function parseThresholdUsd(raw: string): number | null {
+            const trimmed = raw.trim()
+            if (!trimmed) return 0
+            if (!/^\d+(\.\d{1,2})?$/.test(trimmed)) return null
+            const value = Number(trimmed)
+            if (!Number.isFinite(value) || value < 0) return null
+            return value
+        }
+
+        function readForm(): PosConfig | null {
+            const tipPresets = parseTipPresets(inputFor('tipPresets').value)
+            if (!tipPresets) {
+                setStatus('Tip presets must be comma-separated whole numbers between 1 and 100.', 'error')
+                return null
+            }
+
+            const confirmThresholdUsd = parseThresholdUsd(inputFor('confirmThresholdUsd').value)
+            if (confirmThresholdUsd === null) {
+                setStatus('The confirmation threshold must be a dollar amount, for example 50 or 12.50.', 'error')
+                return null
+            }
+
+            return {
+                storeName: inputFor('storeName').value.trim() || DEFAULT_CONFIG.storeName,
+                currency: inputFor('currency').value.trim().toUpperCase() || DEFAULT_CONFIG.currency,
+                tipPresets,
+                destinationAddress: inputFor('destinationAddress').value.trim(),
+                confirmThresholdUsd,
+                // The JWT is never read from this page. Carrying the stored
+                // value through unchanged keeps the previous behaviour of the
+                // config object without ever surfacing it in the UI.
+                refundAddress: DEFAULT_CONFIG.refundAddress,
+                apiKey: DEFAULT_CONFIG.apiKey
+            }
+        }
+
+        async function validateAddress(): Promise<boolean> {
+            const value = inputFor('destinationAddress').value.trim()
+
+            if (!value) {
+                setAddressStatus('Validated as a Dash mainnet P2PKH address.', 'muted')
+                return true
+            }
+
+            const ok = await isValidDashAddress(value)
+            setAddressStatus(ok
+                ? 'Valid Dash mainnet address.'
+                : 'Not a valid Dash mainnet P2PKH address.', ok ? 'ok' : 'error')
+            return ok
+        }
+
+        // Report whether the deployed API has a partner key bound, without
+        // revealing it. /v1/health exposes only a boolean.
+        async function reportKeyStatus() {
+            try {
+                const response = await fetch(`${API_BASE}/health`)
+                const data = await response.json()
+                keyStatusEl.textContent = data.partnerKeyPresent
+                    ? 'Partner key is configured on the server. Quotes are authenticated.'
+                    : 'No partner key configured on the server. Quotes use the public schedule.'
+            } catch {
+                keyStatusEl.textContent = 'Could not reach the API to check the partner key.'
+            }
+        }
+
+        form.addEventListener('submit', async (event) => {
+            event.preventDefault()
+
+            const config = readForm()
+            if (!config) return
+
+            if (!(await validateAddress())) {
+                setStatus('Fix the highlighted address before saving.', 'error')
+                return
+            }
+
+            if (!saveConfig(config)) {
+                setStatus('Could not save: browser storage is unavailable.', 'error')
+                return
+            }
+
+            fillForm(config)
+            setStatus('Settings saved.', 'ok')
+        })
+
+        resetBtn.addEventListener('click', () => {
+            clearConfig()
+            fillForm({ ...DEFAULT_CONFIG })
+            setAddressStatus('Validated as a Dash mainnet P2PKH address.', 'muted')
+            setStatus('Settings reset to defaults.', 'ok')
+        })
+
+        // Live re-validation as the operator types.
+        {
+            const input = inputFor('destinationAddress')
+            let timer: number | undefined
+            input.addEventListener('input', () => {
+                if (timer) window.clearTimeout(timer)
+                timer = window.setTimeout(async () => {
+                    const value = input.value.trim()
+                    if (!value) {
+                        setAddressStatus('Validated as a Dash mainnet P2PKH address.', 'muted')
+                        return
+                    }
+                    const ok = await isValidDashAddress(value)
+                    setAddressStatus(ok
+                        ? 'Valid Dash mainnet address.'
+                        : 'Not a valid Dash mainnet P2PKH address.', ok ? 'ok' : 'error')
+                }, 250)
+            })
+        }
+
+        // --- INSTALL ---
+        //
+        // "Install DashPoint to Home Screen".
+        //
+        // Only Chromium browsers fire beforeinstallprompt, and only when the
+        // manifest, service worker, and secure-origin requirements are met, so
+        // the event is captured when it arrives and its prompt is deferred until
+        // the operator clicks. Every other browser, iOS Safari in particular,
+        // has no programmatic install at all: there the button is replaced by
+        // the steps for the share sheet, because a button that cannot do
+        // anything is worse than an instruction that can be followed.
+        type InstallPrompt = Event & { prompt(): Promise<void>; userChoice: Promise<{ outcome: string }> }
+        let deferredInstallPrompt: InstallPrompt | null = null
+
+        /* Show the hint, choosing the wording for this browser. */
+        function showInstallHint() {
+            const ua = navigator.userAgent
+            const isIos = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+            const isSafari = isIos && !/CriOS|FxiOS|EdgiOS/.test(ua)
+
+            installHint.classList.remove('hidden')
+            installHint.classList.add('flex')
+            /* iOS Safari has no install event, so it always gets the steps. */
+            installHintIos.classList.toggle('hidden', !isSafari)
+            installHintGeneric.classList.toggle('hidden', isSafari)
+        }
+
+        /*
+         * True when this page is already running as an installed app.
+         *
+         * display-mode standalone is the modern signal; navigator.standalone is
+         * the iOS-specific one, and iOS does not report display-mode reliably.
+         */
+        function isInstalled() {
+            return window.matchMedia('(display-mode: standalone)').matches
+                || (navigator as unknown as { standalone?: boolean }).standalone === true
+        }
+
+        function refreshInstallUi() {
+            if (isInstalled()) {
+                installBtn.classList.add('hidden')
+                installHint.classList.add('hidden')
+                installHint.classList.remove('flex')
+                installDone.classList.remove('hidden')
+                return
+            }
+            installDone.classList.add('hidden')
+            if (deferredInstallPrompt) {
+                /* A real prompt is available, so offer the real button. */
+                installBtn.classList.remove('hidden')
+                installHint.classList.add('hidden')
+                installHint.classList.remove('flex')
+            } else {
+                installBtn.classList.add('hidden')
+                showInstallHint()
+            }
+        }
+
+        window.addEventListener('beforeinstallprompt', (event) => {
+            /* Suppress the browser's own mini-infobar so the page controls it. */
+            event.preventDefault()
+            deferredInstallPrompt = event as InstallPrompt
+            refreshInstallUi()
+        })
+
+        window.addEventListener('appinstalled', () => {
+            deferredInstallPrompt = null
+            refreshInstallUi()
+            setStatus('DashPoint was installed to the home screen.', 'ok')
+        })
+
+        installBtn.addEventListener('click', async () => {
+            if (!deferredInstallPrompt) return
+            const prompt = deferredInstallPrompt
+            /*
+             * An install prompt is single-use, so it is cleared before awaiting
+             * the choice: a second click must not replay a spent event.
+             */
+            deferredInstallPrompt = null
+            await prompt.prompt()
+            const choice = await prompt.userChoice
+            if (choice.outcome !== 'accepted') {
+                /* Declined installs can still be offered again on a later visit. */
+                refreshInstallUi()
+            }
+        })
+
+        // The POS page registers the service worker; this page only needs the
+        // manifest to be reachable, which the link tag above provides.
+        refreshInstallUi()
+
+        // Hydrate from localStorage on load.
+        fillForm(loadConfig())
+        void reportKeyStatus()
+    </script>
+</body>
+</html>

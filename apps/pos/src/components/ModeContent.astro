@@ -1,0 +1,80 @@
+---
+// src/components/ModeContent.astro
+---
+
+<div class="w-full mb-[-8px]">
+    <!-- Discount Mode Content -->
+    <div id="Mode-Discount" class="hidden p-6" role="tabpanel">
+        <div class="text-center">
+            <span id="discount-number" class="text-4xl font-black text-blue-500">0</span>
+            <span class="text-xl font-semibold text-slate-500 dark:text-slate-400">%</span>
+            <div class="text-lg text-slate-500 dark:text-slate-400 mt-1">discount</div>
+        </div>
+    </div>
+
+    <!-- Tip Mode Content -->
+    <div id="Mode-Tip" class="hidden p-6" role="tabpanel">
+        <div class="flex flex-wrap items-center justify-center gap-3">
+            <button type="button" class="px-6 py-3 rounded-full text-sm font-medium border-2 border-slate-200 dark:border-slate-700 bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm shadow-md hover:shadow-xl hover:scale-105 active:scale-95 transition-all duration-200" data-tip="custom">
+                Custom
+            </button>
+            <button type="button" class="px-6 py-3 rounded-full text-sm font-medium border-2 border-slate-200 dark:border-slate-700 bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm shadow-md hover:shadow-xl hover:scale-105 active:scale-95 transition-all duration-200" data-tip="15">15%</button>
+            <button type="button" class="px-6 py-3 rounded-full text-sm font-medium border-2 border-slate-200 dark:border-slate-700 bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm shadow-md hover:shadow-xl hover:scale-105 active:scale-95 transition-all duration-200" data-tip="18">18%</button>
+            <button type="button" class="px-6 py-3 rounded-full text-sm font-medium border-2 border-slate-200 dark:border-slate-700 bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm shadow-md hover:shadow-xl hover:scale-105 active:scale-95 transition-all duration-200" data-tip="20">20%</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    const app = document.getElementById('pos-app')
+
+    document.querySelectorAll('#Mode-Tip [data-tip]').forEach((btn: any) => {
+        btn.addEventListener('click', () => {
+            const tipValue = btn.dataset.tip
+            if (tipValue === 'custom') {
+                app?.dispatchEvent(new CustomEvent('modechange', {
+                    detail: { mode: 'tip' },
+                    bubbles: true,
+                    composed: true
+                }))
+            } else {
+                app?.dispatchEvent(new CustomEvent('tip:preset', {
+                    detail: { tip: parseInt(tipValue) },
+                    bubbles: true,
+                    composed: true
+                }))
+            }
+        })
+    })
+
+    app?.addEventListener('stateupdate', (e: any) => {
+        const { activeMode, discountPercent } = e.detail
+
+        // Show correct tab
+        document.getElementById('Mode-Discount')!.classList.toggle('hidden', activeMode !== 'discount')
+        document.getElementById('Mode-Tip')!.classList.toggle('hidden', activeMode !== 'tip')
+
+        // Update discount display
+        document.getElementById('discount-number')!.textContent = `${discountPercent || 0}`
+
+        // Update tip buttons
+        document.querySelectorAll('#Mode-Tip [data-tip]').forEach((btn: any) => {
+            /*
+             * "custom" is not a number. parseInt turned it into NaN, and NaN
+             * never equals tipPercent, so the Custom button could never show as
+             * selected. It is a mode switch rather than a preset, so it is only
+             * marked when the mode is Tip and no preset is active.
+             */
+            const isCustom = btn.dataset.tip === 'custom'
+            const btnTip = isCustom ? NaN : parseInt(btn.dataset.tip, 10)
+            const active = isCustom
+                ? activeMode === 'tip' && !(e.detail.tipPercent > 0)
+                : btnTip === e.detail.tipPercent
+            btn.classList.toggle('bg-blue-500', active)
+            btn.classList.toggle('text-white', active)
+            btn.classList.toggle('border-blue-500', active)
+            btn.classList.toggle('shadow-lg', active)
+            btn.classList.toggle('scale-105', active)
+        })
+    })
+</script>

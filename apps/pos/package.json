@@ -1,0 +1,22 @@
+{
+  "name": "dashpoint-sale",
+  "author": "Sansbank contributors <hello@sansbank.org>",
+  "license": "MIT",
+  "type": "module",
+  "version": "25.10.3",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "astro": "astro"
+  },
+  "dependencies": {
+    "@tailwindcss/vite": "4.1.14",
+    "astro": "5.14.1",
+    "qrcode": "^1.5.4",
+    "tailwindcss": "4.1.14"
+  },
+  "devDependencies": {
+    "@types/qrcode": "^1.5.6"
+  }
+}
