@@ -23,10 +23,10 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
 ---
 
 <!DOCTYPE html>
-<html lang="en" class="h-screen">
+<html lang="en">
 <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>DashPoint POS</title>
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-title" content="DashPoint" />
@@ -36,8 +36,8 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
 </head>
-<body class="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 text-slate-900 dark:text-slate-100 flex flex-col">
-    <div id="pos-app" class="flex flex-col h-full min-h-screen">
+<body class="min-h-dvh bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 dark:from-slate-900 dark:via-slate-900 dark:to-indigo-950 text-slate-900 dark:text-slate-100 flex flex-col">
+    <div id="pos-app" class="flex flex-col h-dvh">
         <!--
             Store Header
 
@@ -56,7 +56,7 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
                         <line x1="3" y1="18" x2="21" y2="18"></line>
                     </svg>
                 </button>
-                <h1 class="text-xl sm:text-2xl font-bold flex-1 text-center md:text-left md:ml-1 truncate">DashPoint POS</h1>
+                <h1 id="store-name" class="text-xl sm:text-2xl font-bold flex-1 text-center md:text-left md:ml-1 truncate">DashPoint POS</h1>
                 <!-- Balances the menu button so the title stays optically centred on mobile. -->
                 <div class="shrink-0 w-11 h-11 md:hidden" aria-hidden="true"></div>
             </div>
@@ -81,7 +81,7 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
             <a href="/admin" class="flex items-center gap-3 rounded-xl px-3 py-3 font-medium hover:bg-slate-100 dark:hover:bg-slate-700/60">Terminal Admin</a>
             <a href="/privacy" class="flex items-center gap-3 rounded-xl px-3 py-3 font-medium hover:bg-slate-100 dark:hover:bg-slate-700/60">Privacy</a>
             <a href="/terms" class="flex items-center gap-3 rounded-xl px-3 py-3 font-medium hover:bg-slate-100 dark:hover:bg-slate-700/60">Terms</a>
-            <div class="mt-auto text-xs text-slate-400 dark:text-slate-500 px-3 py-2">DashPoint POS</div>
+            <div id="menu-store-name" class="mt-auto text-xs text-slate-400 dark:text-slate-500 px-3 py-2">DashPoint POS</div>
         </nav>
 
         <!--
@@ -93,7 +93,7 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
             without scrolling. `md:flex-row` is the only structural switch; the
             children keep their existing classes in portrait.
         -->
-        <main class="flex flex-col gap-3 sm:gap-4 my-auto px-6 flex-1 justify-center md:flex-row md:items-center md:gap-10 md:px-10 md:py-6 md:max-w-6xl md:mx-auto md:w-full">
+        <main class="flex flex-col gap-3 sm:gap-4 my-auto px-6 flex-1 min-h-0 justify-center md:flex-row md:items-center md:gap-10 md:px-10 md:py-6 md:max-w-6xl md:mx-auto md:w-full">
             <!-- Display Area -->
             <div class="flex flex-col items-center px-6 mb-auto flex-grow justify-center min-h-0 md:mb-0 md:min-h-0 md:w-1/2 md:flex-none md:px-0">
                 <Display client:load />
@@ -109,10 +109,16 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
                 on the amount screen, so a sale that cannot be paid is known
                 before the payment screen opens.
             -->
-            <div id="pos-minimum" class="hidden flex-col items-center gap-1 rounded-2xl border-2 border-amber-400 dark:border-amber-600 bg-amber-50 dark:bg-amber-950/40 px-4 py-3 text-center">
-                <div class="text-xs font-semibold uppercase tracking-wide text-amber-800 dark:text-amber-300">Minimum payment</div>
-                <div id="pos-minimum-usd" class="text-3xl font-black leading-none text-amber-900 dark:text-amber-100"></div>
-                <div id="pos-minimum-assets" class="text-sm font-medium text-amber-800 dark:text-amber-300"></div>
+            <!--
+                Deliberately low-contrast: this is reference information, not a
+                warning about the current sale. It keeps the same wording and
+                placement but drops the amber fill, border and headline size so
+                it reads as part of the background instead of an alert.
+            -->
+            <div id="pos-minimum" class="hidden flex-col items-center gap-0.5 px-4 text-center">
+                <div class="text-[10px] font-medium uppercase tracking-wider text-slate-400 dark:text-slate-500">Minimum payment</div>
+                <div id="pos-minimum-usd" class="text-sm font-semibold leading-tight text-slate-500 dark:text-slate-400"></div>
+                <div id="pos-minimum-assets" class="text-[11px] text-slate-400 dark:text-slate-500"></div>
             </div>
 
             <!-- Controls column: tabs, keypad and Pay in one stack on wide screens. -->
@@ -274,6 +280,31 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
         // DOM Elements
         const app = document.getElementById('pos-app')
         const chargeBtn = document.getElementById('charge-btn')
+        const storeNameEl = document.getElementById('store-name')
+        const menuStoreNameEl = document.getElementById('menu-store-name')
+
+        /*
+         * Show the merchant's store name in the header and the menu footer.
+         *
+         * The name is a display preference saved by /admin for this device, and
+         * it falls back to the shipped default when none was set, so the header
+         * never becomes empty. The document title is renamed too: an installed
+         * PWA takes its app label from here, and "DashPoint POS" would otherwise
+         * show on the home screen instead of the merchant's own shop.
+         */
+        function applyStoreName() {
+            let name = ''
+            try {
+                const raw = JSON.parse(localStorage.getItem(CONFIG_STORAGE_KEY) || '{}')
+                if (typeof raw.storeName === 'string') name = raw.storeName.trim()
+            } catch {
+                /* Unreadable storage leaves the shipped default in place. */
+            }
+            if (!name) name = 'DashPoint POS'
+            if (storeNameEl) storeNameEl.textContent = name
+            if (menuStoreNameEl) menuStoreNameEl.textContent = name
+            document.title = name
+        }
 
         /*
          * Slide-out menu.
@@ -606,6 +637,25 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
         // The key /admin writes. Read here so the two pages share one setting.
         const CONFIG_STORAGE_KEY = 'dashpoint.config.v1'
 
+        /*
+         * paint the store name once the key above has been initialised.
+         *
+         * applyStoreName() reads CONFIG_STORAGE_KEY, and a `const` binding is
+         * in its temporal dead zone until this line runs, so the call cannot
+         * sit with the other start-up work above it.
+         */
+        applyStoreName()
+
+        /*
+         * Repaint when another tab writes the config, which is how a name
+         * saved on /admin reaches an already-open terminal. The `storage`
+         * event fires only in OTHER documents, so the /admin tab triggers it
+         * here without this tab painting over its own write.
+         */
+        window.addEventListener('storage', (event) => {
+            if (event.key === null || event.key === CONFIG_STORAGE_KEY) applyStoreName()
+        })
+
         // Read the payout address saved on /admin for this device. Held in a
         // variable and sent with the quote; never written into the page.
         function storedPayoutAddress(): string {
@@ -887,7 +937,7 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
          * These are shown as buttons at all times, so the common case never
          * needs the search box. Ids missing from the loaded list are skipped.
          */
-        const POPULAR_ASSET_IDS = ['btc', 'eth', 'usdc-eth', 'sol', 'usdc-sol', 'ltc']
+        const POPULAR_ASSET_IDS = ['dash', 'btc', 'eth', 'usdc-eth', 'sol', 'usdc-sol', 'ltc']
 
         function assetById(id: string) {
             return originAssets.find((a) => a.id === id)
@@ -1129,8 +1179,16 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
              * customer to remember which coin they had chosen, while the
              * deposit address below is chain-specific and differs per method.
              */
+            /*
+             * Show the amount to send, not the raw quote input.
+             *
+             * Some origin chains print more decimals than the wallet accepts
+             * (Solana has 9), so the server returns payAmountFormatted rounded
+             * UP to 8 decimals. Falling back to amountInFormatted keeps an
+             * older API response renderable.
+             */
             if (checkoutAmount) {
-                checkoutAmount.textContent = `${quote.amountInFormatted}`
+                checkoutAmount.textContent = `${quote.payAmountFormatted || quote.amountInFormatted}`
             }
             if (checkoutAmountSymbol) {
                 checkoutAmountSymbol.textContent = quote.originSymbol || ''
@@ -1185,7 +1243,7 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
              */
             const chain = String(quote.originBlockchain || '').toLowerCase()
             const schemes: Record<string, string> = {
-                btc: 'bitcoin', ltc: 'litecoin', doge: 'dogecoin',
+                dash: 'dash', btc: 'bitcoin', ltc: 'litecoin', doge: 'dogecoin',
                 sol: 'solana', xrp: 'xrp',
                 eth: 'ethereum', base: 'ethereum', arb: 'ethereum',
                 op: 'ethereum', avax: 'ethereum', pol: 'ethereum'
