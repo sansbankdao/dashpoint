@@ -96,29 +96,37 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
         <main class="flex flex-col gap-3 sm:gap-4 my-auto px-6 flex-1 min-h-0 justify-center md:flex-row md:items-center md:gap-10 md:px-10 md:py-6 md:max-w-6xl md:mx-auto md:w-full">
             <!-- Display Area -->
             <div class="flex flex-col items-center px-6 mb-auto flex-grow justify-center min-h-0 md:mb-0 md:min-h-0 md:w-1/2 md:flex-none md:px-0">
+                <!--
+                    Minimum payment banner.
+
+                    The floor is per-route and is only reported by 1Click when
+                    it REFUSES a quote, which is after the clerk has committed
+                    to a sale. It is read up front from GET /v1/minimum and
+                    shown here, above the amount, so a sale that cannot be paid
+                    is known before the payment screen opens.
+
+                    It sits above the amount deliberately. The clerk needs the
+                    floor BEFORE ringing anything up, and a banner below the
+                    digits competed with the keypad for the single screen the
+                    terminal must occupy. It is hidden as soon as a figure is
+                    keyed in, because the live total is then the more useful
+                    number, and restored when the entry is cleared.
+                -->
+                <!--
+                    Deliberately low-contrast: this is reference information,
+                    not a warning about the current sale. It keeps the same
+                    wording and placement but drops the amber fill, border and
+                    headline size so it reads as part of the background instead
+                    of an alert.
+                -->
+                <div id="pos-minimum" class="hidden flex-col items-center gap-0.5 px-4 text-center">
+                    <div class="text-[10px] font-medium uppercase tracking-wider text-slate-400 dark:text-slate-500">Minimum payment</div>
+                    <div id="pos-minimum-usd" class="text-sm font-semibold leading-tight text-slate-500 dark:text-slate-400"></div>
+                    <div id="pos-minimum-assets" class="text-[11px] text-slate-400 dark:text-slate-500"></div>
+                </div>
+
                 <Display client:load />
                 <ModeContent client:load />
-            </div>
-
-            <!--
-                Minimum payment banner.
-
-                The floor is per-route and is only reported by 1Click when it
-                REFUSES a quote, which is after the clerk has committed to a
-                sale. It is read up front from GET /v1/minimum and shown here,
-                on the amount screen, so a sale that cannot be paid is known
-                before the payment screen opens.
-            -->
-            <!--
-                Deliberately low-contrast: this is reference information, not a
-                warning about the current sale. It keeps the same wording and
-                placement but drops the amber fill, border and headline size so
-                it reads as part of the background instead of an alert.
-            -->
-            <div id="pos-minimum" class="hidden flex-col items-center gap-0.5 px-4 text-center">
-                <div class="text-[10px] font-medium uppercase tracking-wider text-slate-400 dark:text-slate-500">Minimum payment</div>
-                <div id="pos-minimum-usd" class="text-sm font-semibold leading-tight text-slate-500 dark:text-slate-400"></div>
-                <div id="pos-minimum-assets" class="text-[11px] text-slate-400 dark:text-slate-500"></div>
             </div>
 
             <!-- Controls column: tabs, keypad and Pay in one stack on wide screens. -->
@@ -133,11 +141,68 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
 
         <!-- Pay Button -->
         <div class="px-6 pb-4 sm:pb-5 md:px-10 md:pb-6 md:max-w-6xl md:mx-auto md:w-full">
+            <!--
+                Cash register.
+
+                The running amount sits in the drawer face, so the figure the
+                customer is being charged is visible at the point of sale and
+                not only on the customer-facing display above. It reuses
+                #pos-total by delegating to calculateTotal() from updateDOM(),
+                so it can never disagree with the amount the sale is priced at.
+
+                Hidden until there is something to charge. A register reading
+                $0.00 next to an empty keypad is noise, and it would occupy the
+                single screen the terminal must fit on.
+            -->
+            <div id="register" class="hidden flex-col gap-1 mb-2">
+                <div class="flex items-baseline justify-between gap-2 px-1">
+                    <span class="text-[10px] font-medium uppercase tracking-wider text-slate-400 dark:text-slate-500">Cash register</span>
+                    <span id="register-total" class="text-2xl font-black leading-none">$0.00</span>
+                </div>
+                <!--
+                    The drawer face. It is drawn here and pulled open by the
+                    class change in pumpRegister(): the lid slides up and the
+                    tray of notes becomes visible, so a completed sale reads as
+                    a drawer that has opened rather than a button that flashed.
+                -->
+                <div id="register-drawer" class="relative h-9 rounded-xl border border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-900 overflow-hidden transition-all duration-300">
+                    <div class="absolute inset-x-0 bottom-0 flex h-full items-end justify-center gap-1 px-3 pb-1">
+                        <span class="h-3 w-8 rounded-sm bg-emerald-500/70"></span>
+                        <span class="h-5 w-10 rounded-sm bg-blue-500/70"></span>
+                        <span class="h-4 w-8 rounded-sm bg-amber-500/70"></span>
+                        <span class="h-6 w-10 rounded-sm bg-emerald-500/70"></span>
+                        <span class="h-3 w-8 rounded-sm bg-blue-500/70"></span>
+                    </div>
+                    <div id="register-lid" class="absolute inset-x-0 top-0 flex h-full items-center justify-center bg-slate-200 dark:bg-slate-700 transition-transform duration-300">
+                        <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400" id="register-label">Closed</span>
+                    </div>
+                </div>
+            </div>
+
             <button id="charge-btn"
                 class="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 disabled:from-slate-400 disabled:to-slate-500 text-white font-bold py-5 px-6 rounded-2xl text-xl shadow-2xl hover:shadow-3xl active:translate-y-0.5 transition-all duration-200 disabled:cursor-not-allowed disabled:shadow-lg flex items-center justify-center h-16 disabled:transform-none text-lg"
                 disabled>
                 Pay Now
             </button>
+        </div>
+    </div>
+
+    <!--
+        Payment celebration.
+
+        Confetti plus a large PAID stamp. It is a fixed overlay rather than a
+        change to the checkout card, because the moment a payment lands is the
+        one moment the whole screen should say so.
+    -->
+    <div id="paid-overlay" class="hidden fixed inset-0 z-[90] pointer-events-none items-center justify-center">
+        <canvas id="paid-confetti" class="absolute inset-0 w-full h-full"></canvas>
+        <!--
+            The stamp. Scaled in from 0.6 with a slight over-rotation, which is
+            what makes it read as stamped rather than faded in.
+        -->
+        <div id="paid-stamp" class="relative select-none rounded-2xl border-8 border-emerald-500 bg-emerald-500/95 px-10 py-6 shadow-2xl scale-50 -rotate-12 opacity-0 transition-all duration-500">
+            <div class="text-6xl sm:text-7xl font-black tracking-tight text-white text-center leading-none">PAID</div>
+            <div id="paid-amount" class="text-center text-lg font-bold text-white/90 mt-2"></div>
         </div>
     </div>
 
@@ -382,6 +447,16 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
         const posMinimumUsd = document.getElementById('pos-minimum-usd')
         const posMinimumAssets = document.getElementById('pos-minimum-assets')
 
+        const registerEl = document.getElementById('register')
+        const registerTotal = document.getElementById('register-total')
+        const registerDrawer = document.getElementById('register-drawer')
+        const registerLid = document.getElementById('register-lid')
+        const registerLabel = document.getElementById('register-label')
+        const paidOverlay = document.getElementById('paid-overlay')
+        const paidStamp = document.getElementById('paid-stamp')
+        const paidAmount = document.getElementById('paid-amount')
+        const paidConfetti = document.getElementById('paid-confetti') as HTMLCanvasElement | null
+
         // Custom Events
         app?.addEventListener('modechange', (e: any) => {
             activeMode = e.detail.mode
@@ -493,9 +568,15 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
              * than after the customer has chosen a payment method.
              */
             const belowMinimum = total > 0 && lowestMinimumUsd !== null && total < lowestMinimumUsd
+            /*
+             * The button reads "Pay Now" when there is nothing to charge and
+             * "Complete Sale" once there is. They are the same control, as at a
+             * real register: the drawer face above it shows the running amount
+             * and this finalises the sale.
+             */
             chargeBtn!.textContent = belowMinimum
                 ? `Below minimum ${formatCurrency(lowestMinimumUsd!)}`
-                : (total > 0 ? `Pay Now ${formatCurrency(total)}` : 'Pay Now')
+                : (total > 0 ? `Complete Sale ${formatCurrency(total)}` : 'Pay Now')
             ;(chargeBtn! as HTMLButtonElement).disabled = total <= 0 || belowMinimum
             /*
              * Show the floor on the amount screen whenever it is known. It is
@@ -510,6 +591,162 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
             if (posMinimumAssets) {
                 posMinimumAssets.textContent = minimumAssetSummary
             }
+
+            /*
+             * Drive the cash register from the same total as the Pay button.
+             *
+             * Both read calculateTotal(), so the drawer face and the button can
+             * never quote different figures for one sale.
+             */
+            if (registerEl) {
+                const showRegister = total > 0 || baseAmount > 0
+                registerEl.classList.toggle('hidden', !showRegister)
+                registerEl.classList.toggle('flex', showRegister)
+                if (registerTotal) registerTotal.textContent = formatCurrency(total)
+            }
+
+            /*
+             * Hide the floor once a figure has been keyed in.
+             *
+             * Before that it is the most useful number on the screen, because
+             * it decides whether a sale can be taken at all. Afterwards the
+             * running total is, and the two competed for the same space. It
+             * returns when the entry is cleared, so the figure is never lost:
+             * a clerk who clears a mistyped amount gets the floor back.
+             */
+            if (posMinimum && lowestMinimumUsd !== null) {
+                const hasEntry = parseFloat(amountStr) > 0 || baseAmount > 0
+                posMinimum.classList.toggle('hidden', hasEntry)
+                posMinimum.classList.toggle('flex', !hasEntry)
+            }
+        }
+
+        /*
+         * Open the drawer for a completed sale.
+         *
+         * The lid slides up out of the drawer face and the tray of notes is
+         * revealed underneath, so the register reads as OPEN rather than as a
+         * button that flashed. It is reset by closeRegister() when the next
+         * sale begins or the checkout is dismissed.
+         */
+        function pumpRegister() {
+            registerDrawer?.classList.add('border-emerald-500')
+            if (registerLid) registerLid.classList.add('-translate-y-full')
+            if (registerLabel) {
+                registerLabel.textContent = 'Open'
+                registerLabel.classList.add('text-emerald-600', 'dark:text-emerald-400')
+            }
+        }
+
+        function closeRegister() {
+            registerDrawer?.classList.remove('border-emerald-500')
+            if (registerLid) registerLid.classList.remove('-translate-y-full')
+            if (registerLabel) {
+                registerLabel.textContent = 'Closed'
+                registerLabel.classList.remove('text-emerald-600', 'dark:text-emerald-400')
+            }
+        }
+
+        /*
+         * Confetti and the PAID stamp.
+         *
+         * Drawn on a canvas rather than pulled from a library: it is roughly
+         * thirty lines, it costs no extra download, and it keeps the only
+         * third-party runtime dependency in this page as the QR encoder.
+         *
+         * Respects prefers-reduced-motion by showing the stamp without the
+         * animation, so the confirmation still appears for a user who has
+         * asked the system not to move things.
+         */
+        const CONFETTI_COLORS = ['#10B981', '#3B82F6', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899']
+        let confettiTimer: number | null = null
+
+        function celebrate(amountLabel: string) {
+            if (!paidOverlay) return
+            if (paidAmount) paidAmount.textContent = amountLabel
+            paidOverlay.classList.remove('hidden')
+            paidOverlay.classList.add('flex')
+            /* Commit the start state before animating, as closeMenu() does. */
+            void paidStamp?.offsetHeight
+            paidStamp?.classList.remove('scale-50', '-rotate-12', 'opacity-0')
+            paidStamp?.classList.add('scale-100')
+            const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+            if (!reduced) void runConfetti()
+        }
+
+        function dismissCelebration() {
+            if (!paidOverlay) return
+            /*
+             * confettiTimer holds a requestAnimationFrame id, not a timer id,
+             * so it must be cancelled with cancelAnimationFrame. Clearing it
+             * with clearTimeout would leave the draw loop running against a
+             * hidden canvas for the rest of its two seconds.
+             */
+            if (confettiTimer !== null) {
+                window.cancelAnimationFrame(confettiTimer)
+                confettiTimer = null
+            }
+            paidOverlay.classList.add('hidden')
+            paidOverlay.classList.remove('flex')
+            paidStamp?.classList.add('scale-50', '-rotate-12', 'opacity-0')
+            paidStamp?.classList.remove('scale-100')
+            if (paidConfetti) {
+                const ctx = paidConfetti.getContext('2d')
+                ctx?.clearRect(0, 0, paidConfetti.width, paidConfetti.height)
+            }
+        }
+
+        async function runConfetti() {
+            if (!paidConfetti) return
+            const canvas = paidConfetti
+            const ctx = canvas.getContext('2d')
+            if (!ctx) return
+
+            const dpr = window.devicePixelRatio || 1
+            const w = canvas.clientWidth || window.innerWidth
+            const h = canvas.clientHeight || window.innerHeight
+            canvas.width = Math.floor(w * dpr)
+            canvas.height = Math.floor(h * dpr)
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+
+            const parts = Array.from({ length: 90 }, () => ({
+                x: w * (0.25 + Math.random() * 0.5),
+                y: h * (0.25 + Math.random() * 0.2),
+                vx: (Math.random() - 0.5) * 9,
+                vy: -Math.random() * 9 - 2,
+                size: 5 + Math.random() * 7,
+                color: CONFETTI_COLORS[Math.floor(Math.random() * CONFETTI_COLORS.length)],
+                rot: Math.random() * Math.PI,
+                spin: (Math.random() - 0.5) * 0.3
+            }))
+
+            const gravity = 0.32
+            const started = performance.now()
+
+            function frame(now: number) {
+                const elapsed = now - started
+                ctx.clearRect(0, 0, w, h)
+                for (const p of parts) {
+                    p.vy += gravity
+                    p.x += p.vx
+                    p.y += p.vy
+                    p.rot += p.spin
+                    ctx.save()
+                    ctx.translate(p.x, p.y)
+                    ctx.rotate(p.rot)
+                    ctx.fillStyle = p.color
+                    ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size * 0.6)
+                    ctx.restore()
+                }
+                /* Stop once the last piece has fallen past the fold. */
+                if (elapsed < 2200) {
+                    confettiTimer = window.requestAnimationFrame(frame)
+                } else {
+                    ctx.clearRect(0, 0, w, h)
+                    confettiTimer = null
+                }
+            }
+            confettiTimer = window.requestAnimationFrame(frame)
         }
 
         function handleKeyInput(key: string) {
@@ -664,6 +901,27 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
                 return typeof raw.destinationAddress === 'string' ? raw.destinationAddress.trim() : ''
             } catch {
                 return ''
+            }
+        }
+
+        /*
+         * Read the confirmation threshold saved on /admin for this device.
+         *
+         * ZERO MEANS UNLIMITED: a sale of any size completes as soon as the
+         * deposit is detected, which is the default. A value above zero makes
+         * sales above that figure wait for the payout to be broadcast.
+         *
+         * This page does not import the config module, so the value is read
+         * from the same key that /admin writes and coerced here. A corrupt or
+         * unreadable entry falls back to 0, so it can never stall a sale.
+         */
+        function storedConfirmThresholdUsd(): number {
+            try {
+                const raw = JSON.parse(localStorage.getItem(CONFIG_STORAGE_KEY) || '{}')
+                const value = Number(raw.confirmThresholdUsd)
+                return Number.isFinite(value) && value > 0 ? value : 0
+            } catch {
+                return 0
             }
         }
 
@@ -1074,6 +1332,13 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
             }
             setSetupPromptVisible(false)
             clearMinimum()
+            /*
+             * A new sale starts with the drawer shut and no confetti left over
+             * from the previous one, so the celebration only ever belongs to
+             * the sale in progress.
+             */
+            closeRegister()
+            dismissCelebration()
 
             // Restore the asset the clerk last used, if any.
             const prefs = loadCheckoutPrefs()
@@ -1091,6 +1356,13 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
         function closeCheckout() {
             checkoutPanel?.classList.add('hidden')
             stopPolling()
+            /*
+             * A dismissed payment leaves the register shut. The sale did not
+             * complete, so the drawer must not stay open behind the panel and
+             * then be discovered on the next sale.
+             */
+            closeRegister()
+            dismissCelebration()
         }
 
         function stopPolling() {
@@ -1269,6 +1541,42 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
             stopPolling()
             const terminal = ['SUCCESS', 'REFUNDED', 'FAILED']
 
+            /*
+             * The earliest state that means the money is in.
+             *
+             * 1Click publishes no separate confirmation state: the enum is
+             * PENDING_DEPOSIT, KNOWN_DEPOSIT_TX, PROCESSING, SUCCESS and the
+             * three failures. KNOWN_DEPOSIT_TX is documented as "Deposit
+             * transaction detected", so by the time it is reported the origin
+             * chain has already accepted and mined the transfer. Waiting past
+             * it is a policy choice about risk, not a technical requirement,
+             * which is exactly what the threshold setting exists to express.
+             */
+            const DETECTED = 'KNOWN_DEPOSIT_TX'
+            const SETTLED = 'SUCCESS'
+
+            /*
+             * The dollar value of THIS sale, not the running display: the sale
+             * may have been part-paid with + before Pay Now was pressed.
+             */
+            const threshold = storedConfirmThresholdUsd()
+            const mustWait = threshold > 0 && checkoutTotal > threshold
+
+            /*
+             * Fire the celebration once per swap.
+             *
+             * Polling is a loop, so the detected state is seen on several
+             * consecutive ticks. Without this flag the confetti would restart
+             * every ten seconds until the swap settled.
+             */
+            let announced = false
+
+            const announce = () => {
+                announced = true
+                pumpRegister()
+                celebrate(formatCurrency(checkoutTotal))
+            }
+
             const tick = async () => {
                 try {
                     const params = new URLSearchParams({ depositAddress })
@@ -1277,6 +1585,34 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
                     if (checkoutStatus) {
                         checkoutStatus.textContent = statusLabel(state.status)
                     }
+
+                    /*
+                     * A refund or a failure is the end of this sale, whatever
+                     * the amount: it must never be celebrated, and the wait for
+                     * a settlement that will not arrive has to be abandoned.
+                     */
+                    const failed = state.status === 'REFUNDED' || state.status === 'FAILED'
+                    if (failed) {
+                        stopPolling()
+                        return
+                    }
+
+                    if (!announced && state.status === DETECTED) {
+                        /*
+                         * Below the threshold the sale is done here. At or
+                         * above it the clerk is told the deposit landed but
+                         * the payout is still in flight, and the poller keeps
+                         * running until SUCCESS.
+                         */
+                        if (!mustWait) announce()
+                    }
+
+                    if (state.status === SETTLED) {
+                        if (!announced) announce()
+                        stopPolling()
+                        return
+                    }
+
                     if (terminal.includes(state.status)) {
                         stopPolling()
                         return

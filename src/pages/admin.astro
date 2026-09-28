@@ -7,6 +7,17 @@ import { DEFAULT_CONFIG } from '../lib/config'
 // Server-rendered defaults. Live values are hydrated from localStorage by the
 // inline script below so the page works on a static host.
 const defaults = DEFAULT_CONFIG
+
+/*
+ * The confirmation threshold is rendered as a STRING.
+ *
+ * Astro omits an attribute whose value is falsy, and the default threshold is
+ * 0, so `value={defaults.confirmThresholdUsd}` produced an input with no value
+ * attribute at all. The field then showed whatever the browser last had, and
+ * an empty box on a fresh device. A string is never omitted, so "0" reaches
+ * the page.
+ */
+const confirmThresholdValue = String(DEFAULT_CONFIG.confirmThresholdUsd)
 ---
 
 <!DOCTYPE html>
@@ -120,6 +131,19 @@ const defaults = DEFAULT_CONFIG
                         </p>
                     </div>
 
+                    <!-- Settlement -->
+                    <div class="flex flex-col gap-1">
+                        <label for="confirmThresholdUsd" class="text-sm font-medium text-slate-600 dark:text-slate-300">Wait for confirmation above</label>
+                        <input id="confirmThresholdUsd" name="confirmThresholdUsd" type="text" inputmode="decimal" maxlength="12"
+                            value={confirmThresholdValue}
+                            class="rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500" />
+                        <p class="text-xs text-slate-500 dark:text-slate-400">
+                            A dollar figure. Sales at or below it complete as soon as the deposit is detected;
+                            larger sales wait until the DASH payout is broadcast. Leave 0 to treat every sale as
+                            settled on detection, which is the default.
+                        </p>
+                    </div>
+
                     <!-- Secret key handling -->
                     <div class="rounded-xl border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/40 p-4 flex flex-col gap-2">
                         <h3 class="text-sm font-semibold text-amber-900 dark:text-amber-200">Partner key</h3>
@@ -181,7 +205,8 @@ const defaults = DEFAULT_CONFIG
             'storeName',
             'currency',
             'tipPresets',
-            'destinationAddress'
+            'destinationAddress',
+            'confirmThresholdUsd'
         ]
 
         function inputFor(name: keyof PosConfig): HTMLInputElement {
@@ -216,6 +241,7 @@ const defaults = DEFAULT_CONFIG
             inputFor('currency').value = config.currency
             inputFor('tipPresets').value = config.tipPresets.join(', ')
             inputFor('destinationAddress').value = config.destinationAddress
+            inputFor('confirmThresholdUsd').value = String(config.confirmThresholdUsd)
         }
 
         function parseTipPresets(raw: string): number[] | null {
@@ -235,10 +261,33 @@ const defaults = DEFAULT_CONFIG
             return numbers.length ? numbers : null
         }
 
+        /*
+         * Parse the confirmation threshold.
+         *
+         * 0 is a real setting here (do not wait), NOT an empty one, so an empty
+         * box is read as 0 and an unparsable box is refused rather than
+         * silently coerced: a clerk who types "$/5" must be told, because the
+         * alternative is a terminal quietly waiting for the wrong sales.
+         */
+        function parseThresholdUsd(raw: string): number | null {
+            const trimmed = raw.trim()
+            if (!trimmed) return 0
+            if (!/^\d+(\.\d{1,2})?$/.test(trimmed)) return null
+            const value = Number(trimmed)
+            if (!Number.isFinite(value) || value < 0) return null
+            return value
+        }
+
         function readForm(): PosConfig | null {
             const tipPresets = parseTipPresets(inputFor('tipPresets').value)
             if (!tipPresets) {
                 setStatus('Tip presets must be comma-separated whole numbers between 1 and 100.', 'error')
+                return null
+            }
+
+            const confirmThresholdUsd = parseThresholdUsd(inputFor('confirmThresholdUsd').value)
+            if (confirmThresholdUsd === null) {
+                setStatus('The confirmation threshold must be a dollar amount, for example 50 or 12.50.', 'error')
                 return null
             }
 
@@ -247,6 +296,7 @@ const defaults = DEFAULT_CONFIG
                 currency: inputFor('currency').value.trim().toUpperCase() || DEFAULT_CONFIG.currency,
                 tipPresets,
                 destinationAddress: inputFor('destinationAddress').value.trim(),
+                confirmThresholdUsd,
                 // The JWT is never read from this page. Carrying the stored
                 // value through unchanged keeps the previous behaviour of the
                 // config object without ever surfacing it in the UI.

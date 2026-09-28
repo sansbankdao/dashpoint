@@ -7,7 +7,8 @@
  * these values, so they are per-device display preferences. Payment-critical
  * settings live on the dashpoint-api Worker instead:
  *
- *   - The DASH payout address is `MERCHANT_DASH_ADDRESS` on the Worker.
+ *   - The DASH payout address is entered on /admin for THIS device and is sent
+ *     with every quote as `destinationAddress`. The Worker holds none.
  *   - The 1Click partner JWT is a Cloudflare Secrets Store binding.
  *   - Refunds default to the Worker's `REFUND_NEAR_ACCOUNT`.
  *
@@ -21,8 +22,9 @@ export interface PosConfig {
     /**
      * DASH address for sales taken on THIS device.
      *
-     * Sent to the API as `destinationAddress`, which wins over the server's
-     * configured address when present. Empty means "use the server default".
+     * Sent to the API as `destinationAddress`, which is required: the Worker
+     * holds no address of its own. Empty means the terminal is not configured
+     * and cannot take a payment.
      */
     destinationAddress: string
     /** Reserved. Refunds are decided by the API, not by the browser. */
@@ -33,6 +35,20 @@ export interface PosConfig {
     currency: string
     /** Tip percentages offered by the tip tab. */
     tipPresets: number[]
+    /**
+     * Dollar value at or below which a detected deposit is treated as settled
+     * immediately, so a routine sale does not make the customer wait.
+     *
+     * ZERO MEANS UNLIMITED, not "wait for everything": the common case at a
+     * counter is a small sale, and the whole point of the setting is to skip
+     * the wait for those. A shop that wants every payment confirmed on-chain
+     * must set a figure above its largest sale; it cannot express that with
+     * this field at 0.
+     *
+     * Sales ABOVE the figure wait for SUCCESS ("tokens delivered") before the
+     * register reports the sale as complete.
+     */
+    confirmThresholdUsd: number
 }
 
 export const DEFAULT_CONFIG: PosConfig = {
@@ -41,7 +57,8 @@ export const DEFAULT_CONFIG: PosConfig = {
     refundAddress: '',
     apiKey: '',
     currency: 'USD',
-    tipPresets: [10, 15, 20, 25]
+    tipPresets: [10, 15, 20, 25],
+    confirmThresholdUsd: 0
 }
 
 export const CONFIG_STORAGE_KEY = 'dashpoint.config.v1'
@@ -127,6 +144,14 @@ function coerceConfig(raw: Partial<PosConfig> | null): PosConfig {
         : DEFAULT_CONFIG.tipPresets
 
     if (merged.tipPresets.length === 0) merged.tipPresets = DEFAULT_CONFIG.tipPresets
+
+    /*
+     * A stored figure is kept only when it is a usable number. Anything else
+     * falls back to 0, which is the "do not wait" default rather than a
+     * blocking value, so a corrupt entry cannot stall every sale.
+     */
+    const threshold = Number(merged.confirmThresholdUsd)
+    merged.confirmThresholdUsd = Number.isFinite(threshold) && threshold > 0 ? threshold : 0
 
     return merged
 }
