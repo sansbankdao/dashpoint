@@ -40,6 +40,7 @@ import Storefront from '../components/Storefront.astro'
 import StoreNotFound from '../components/StoreNotFound.astro'
 import { products as demoProducts } from '../data/products'
 import {
+    STORE_DOMAIN,
     isDemoHost,
     storeNameFromHostname,
     isValidStoreName,
@@ -119,6 +120,64 @@ const resolverFetch: typeof fetch =
         : (input: RequestInfo | URL, init?: RequestInit) => resolverBinding.fetch(input as RequestInfo, init)
 
 const hostname = Astro.request.headers.get('host') ?? ''
+
+/*
+ * PROXY THE PAGES-HOSTED SUBDOMAINS THROUGH THIS WORKER.
+ *
+ * WHY THIS EXISTS. Username storefronts need the `*.dashpoint.store/*` route,
+ * and so do `www` and `pos` -- but Cloudflare does NOT let a more specific
+ * literal route win over a wildcard reliably, so a wildcard route shadows the
+ * Pages custom domains and `www` / `pos` start answering with this app's
+ * "Store Not Found". Measured, not assumed: both returned `Store Not Found`
+ * until the wildcard was removed.
+ *
+ * Rather than give up either the wildcard or the two hostnames, this Worker
+ * now owns the wildcard and FORWARDS `www` and `pos` to their real origins.
+ * Every `*.dashpoint.store` host therefore reaches one script, and this is the
+ * only place that decides what each host means.
+ *
+ * The origins are the Pages production aliases. They are addressed as
+ * `*.pages.dev` rather than as `www.dashpoint.store` / `pos.dashpoint.store`
+ * on purpose: fetching the `dashpoint.store` spelling would re-enter this
+ * Worker (it matches the same wildcard) and loop forever.
+ *
+ * `www` and `pos` stay in `RESERVED_SUBDOMAINS`, so `storeNameFromHostname()`
+ * returns `null` for them and they can never be mistaken for merchants named
+ * "www" or "pos" while they are being proxied.
+ */
+const PAGES_PROXY_ORIGINS: Record<string, string> = {
+    [`www.${STORE_DOMAIN}`]: 'https://dashpoint-web.pages.dev',
+    [`pos.${STORE_DOMAIN}`]: 'https://dashpoint-sale.pages.dev',
+}
+
+const proxyHost = hostname.replace(/\.$/, '').split(':')[0].toLowerCase()
+const proxyOrigin = PAGES_PROXY_ORIGINS[proxyHost]
+
+if (proxyOrigin !== undefined) {
+    /*
+     * Keep the path and query, drop everything else. The Host header is NOT
+     * forwarded: the upstream Pages project must see its own hostname, or it
+     * would apply the wrong custom-domain logic and could loop back here.
+     */
+    const target = new URL(Astro.request.url)
+    target.host = new URL(proxyOrigin).host
+    target.protocol = 'https:'
+
+    const upstream = await fetch(target.toString(), {
+        method: Astro.request.method,
+        headers: { accept: Astro.request.headers.get('accept') ?? '*/*' },
+        redirect: 'manual',
+    })
+
+    /* Preserve the upstream status and content type; the body streams through. */
+    return new Response(upstream.body, {
+        status: upstream.status,
+        headers: {
+            'content-type': upstream.headers.get('content-type') ?? 'text/html; charset=utf-8',
+            'cache-control': upstream.headers.get('cache-control') ?? 'public, max-age=0, must-revalidate',
+        },
+    })
+}
 
 /*
  * The demo is a first-class host, not a special case bolted onto the resolver.
