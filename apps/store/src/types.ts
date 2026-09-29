@@ -2,7 +2,9 @@
 export interface Product {
     id: number
     title: string
-    /** Display price in dollars. */
+    /**
+     * Display price in dollars.
+     */
     price: number
     /**
      * The price in integer cents, when the source already knows it.
@@ -13,4 +15,12 @@ export interface Product {
      */
     priceCents?: number
     imageUrl: string
+    /**
+     * Storefront presentation fields. A resolved Dash Platform item may carry
+     * none of these, so every one is optional and the grid degrades to the
+     * title and price rather than rendering an empty row.
+     */
+    category?: string
+    tagline?: string
+    description?: string
 }

@@ -4,7 +4,7 @@ import type { Product } from '../types'
 
 interface Props extends Product {}
 
-const { id, title, price, priceCents, imageUrl } = Astro.props;
+const { id, title, price, priceCents, imageUrl, category, tagline, description } = Astro.props;
 
 /*
  * The price is carried to the cart as INTEGER CENTS.
@@ -18,14 +18,39 @@ const { id, title, price, priceCents, imageUrl } = Astro.props;
 const cents = priceCents ?? Math.round(price * 100)
 ---
 <button
-    class="product-card border bg-white rounded-lg p-3 text-center flex flex-col items-center justify-between hover:shadow-lg hover:border-blue-600 transition-all duration-200 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-600"
+    type="button"
+    class="product-card group bg-white rounded-xl border border-gray-200 overflow-hidden flex flex-col text-left transition-all duration-200 hover:shadow-lg hover:border-blue-500 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-600"
     data-id={id}
     data-price-cents={cents}
     data-title={title}
+    aria-label={`Add ${title} to cart, $${price.toFixed(2)}`}
 >
-    <img src={imageUrl} alt={title} width="150" height="150" class="w-full h-24 object-contain mb-2" />
-    <div>
-        <p class="font-semibold text-gray-800">{title}</p>
-        <p class="text-gray-600">${price.toFixed(2)}</p>
+    <div class="relative aspect-square overflow-hidden bg-gray-100 w-full">
+        <img
+            src={imageUrl}
+            alt={title}
+            width="600"
+            height="600"
+            loading="lazy"
+            class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+        />
+        {category && (
+            <span class="absolute top-3 left-3 bg-white/90 backdrop-blur-sm text-gray-700 text-xs font-semibold uppercase tracking-wide px-2 py-1 rounded">
+                {category}
+            </span>
+        )}
+    </div>
+
+    <div class="p-4 flex flex-col flex-1 w-full">
+        <h3 class="font-bold text-gray-900 text-lg leading-tight">{title}</h3>
+        {tagline && <p class="text-sm text-blue-600 font-medium mt-0.5">{tagline}</p>}
+        {description && <p class="text-sm text-gray-500 mt-2 line-clamp-3 flex-1">{description}</p>}
+
+        <div class="mt-4 flex items-center justify-between">
+            <span class="text-xl font-bold text-gray-900">${price.toFixed(2)}</span>
+            <span class="bg-blue-600 text-white text-sm font-bold px-4 py-2 rounded-lg group-hover:bg-blue-700 transition-colors">
+                Add
+            </span>
+        </div>
     </div>
 </button>

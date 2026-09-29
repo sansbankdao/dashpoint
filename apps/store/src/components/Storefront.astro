@@ -30,47 +30,125 @@ const {
 /* Header text for either a resolved store or the demo. */
 const heading = storeName ?? 'Homemade Crypto'
 const logo = storeLogoUrl ?? '/favicon.svg'
+
+/*
+ * The banner sits behind the store identity. The demo supplies its own copy;
+ * a resolved store falls back to the description its document carries, and to
+ * a neutral line when the document has none.
+ */
+const tagline = storeDescription ?? 'Cypherpunk essentials, paid in crypto, settled straight to the merchant.'
+
+/*
+ * Group the grid by category. A resolved store may carry no category at all, in
+ * which case every product lands in a single unnamed group and the heading is
+ * suppressed rather than rendering an empty string.
+ */
+const categories = [...new Set(products.map(product => product.category).filter((c): c is string => Boolean(c)))]
+const showCategories = categories.length > 1
 ---
 
-<div class="min-h-screen flex items-center justify-center p-4">
-    <div class="w-full max-w-md bg-gray-50 rounded-2xl shadow-xl overflow-hidden relative">
-        <!-- Header -->
-        <header class="text-center py-6 px-4 bg-white border-b">
-            <img src={logo} alt={`${heading} logo`} width="100" height="100" class="w-24 h-24 rounded-full mx-auto mb-4 border-2 border-gray-200">
-            <h1 class="text-4xl font-bold text-gray-800">{heading}</h1>
-            {storeDescription && <p class="mt-2 text-sm text-gray-600">{storeDescription}</p>}
-            {proofVerified && (
-                <p class="mt-2 text-xs text-green-700" title="The store document's grovedb proof verified on the server.">
-                    Proof verified{itemsVerified ? ' · items proof verified' : ''}
-                </p>
-            )}
-        </header>
+<div class="min-h-screen bg-gray-100 flex flex-col">
+    <!-- Store banner -->
+    <header class="bg-gray-900 text-white">
+        <div class="max-w-6xl mx-auto px-6 py-10 flex items-center gap-6">
+            <img
+                src={logo}
+                alt={`${heading} logo`}
+                width="100"
+                height="100"
+                class="w-20 h-20 rounded-2xl ring-1 ring-white/20 shrink-0"
+            />
+            <div>
+                <h1 class="text-4xl font-bold tracking-tight">{heading}</h1>
+                <p class="mt-1 text-gray-300">{tagline}</p>
+                {proofVerified && (
+                    <p class="mt-2 text-xs text-green-400" title="The store document's grovedb proof verified on the server.">
+                        Proof verified{itemsVerified ? ' · items proof verified' : ''}
+                    </p>
+                )}
+            </div>
+        </div>
+    </header>
 
-        <!-- Product Grid -->
-        <main class="p-4 grid grid-cols-3 gap-3">
-            {products.map(product => (
-                <ProductCard
-                    id={product.id}
-                    title={product.title}
-                    price={product.price}
-                    imageUrl={product.imageUrl}
-                />
-            ))}
+    <div class="max-w-6xl mx-auto px-6 py-8 w-full flex-1 grid lg:grid-cols-[1fr_320px] gap-8 items-start">
+        <!-- Product listing -->
+        <main>
+            {showCategories ? (
+                categories.map(category => (
+                    <section class="mb-10">
+                        <h2 class="text-sm font-semibold uppercase tracking-wide text-gray-500 mb-4">{category}</h2>
+                        <div class="grid sm:grid-cols-2 xl:grid-cols-3 gap-5">
+                            {products.filter(product => product.category === category).map(product => (
+                                <ProductCard
+                                    id={product.id}
+                                    title={product.title}
+                                    price={product.price}
+                                    priceCents={product.priceCents}
+                                    imageUrl={product.imageUrl}
+                                    category={product.category}
+                                    tagline={product.tagline}
+                                    description={product.description}
+                                />
+                            ))}
+                        </div>
+                    </section>
+                ))
+            ) : (
+                <section>
+                    <h2 class="text-sm font-semibold uppercase tracking-wide text-gray-500 mb-4">
+                        {products.length} item{products.length === 1 ? '' : 's'}
+                    </h2>
+                    <div class="grid sm:grid-cols-2 xl:grid-cols-3 gap-5">
+                        {products.map(product => (
+                            <ProductCard
+                                id={product.id}
+                                title={product.title}
+                                price={product.price}
+                                priceCents={product.priceCents}
+                                imageUrl={product.imageUrl}
+                                category={product.category}
+                                tagline={product.tagline}
+                                description={product.description}
+                            />
+                        ))}
+                    </div>
+                </section>
+            )}
+
+            {products.length === 0 && (
+                <p class="text-gray-500">This store has no items listed yet.</p>
+            )}
         </main>
 
-        <!-- Cart line items -->
-        <section id="cart-items" class="px-4 pb-4 space-y-2"></section>
+        <!-- Cart -->
+        <aside class="lg:sticky lg:top-8">
+            <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                <div class="px-5 py-4 border-b border-gray-200 flex items-center justify-between">
+                    <h2 class="font-bold text-gray-900">Your cart</h2>
+                    <span id="cart-count" class="text-sm text-gray-500">0 items</span>
+                </div>
 
-        <!-- Footer / Cart Summary -->
-        <footer class="sticky bottom-0 bg-white border-t p-4 flex items-center justify-between">
-            <div class="flex items-baseline gap-4">
-                <span id="total-amount" aria-live="polite" class="text-3xl font-bold text-gray-900">$0.00</span>
-                <span class="border rounded-md px-3 py-1 text-sm font-medium text-gray-600 bg-gray-100">USD</span>
+                <section id="cart-items" class="px-5 py-4 space-y-2 max-h-80 overflow-y-auto"></section>
+
+                <p id="cart-empty" class="px-5 py-6 text-sm text-gray-500 text-center">
+                    Your cart is empty. Tap an item to add it.
+                </p>
+
+                <footer class="border-t border-gray-200 px-5 py-4">
+                    <div class="flex items-baseline justify-between mb-4">
+                        <span class="text-sm font-medium text-gray-600">Total</span>
+                        <span id="total-amount" aria-live="polite" class="text-3xl font-bold text-gray-900">$0.00</span>
+                    </div>
+                    <button
+                        id="pay-button"
+                        class="w-full bg-blue-600 text-white font-bold py-3 px-8 rounded-lg hover:bg-blue-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
+                    >
+                        Pay
+                    </button>
+                    <p class="mt-3 text-xs text-gray-400 text-center">Paid in crypto, settled straight to the merchant.</p>
+                </footer>
             </div>
-            <button id="pay-button" class="bg-blue-600 text-white font-bold py-3 px-8 rounded-lg hover:bg-blue-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed">
-                Pay
-            </button>
-        </footer>
+        </aside>
     </div>
 </div>
 
@@ -85,6 +163,8 @@ const productCards = document.querySelectorAll('.product-card')
 const totalAmountEl = document.getElementById('total-amount')
 const payButton = document.getElementById('pay-button') as HTMLButtonElement | null
 const cartItemsEl = document.getElementById('cart-items')
+const cartEmptyEl = document.getElementById('cart-empty')
+const cartCountEl = document.getElementById('cart-count')
 
 function renderCart() {
     if (cartItemsEl === null) return
@@ -95,13 +175,22 @@ function renderCart() {
 
     cartItems.forEach(item => {
         const row = document.createElement('div')
-        row.className = 'flex items-center justify-between bg-white border rounded-lg px-3 py-2 text-sm'
+        row.className = 'flex items-center justify-between gap-2 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm'
 
         const label = document.createElement('span')
-        label.className = 'text-gray-800'
-        label.textContent = `${item.title} × ${item.amount} — ${formatCents(item.price * item.amount)}`
+        label.className = 'text-gray-800 min-w-0 truncate'
+        label.textContent = `${item.title} × ${item.amount}`
+        label.title = `${item.title} × ${item.amount} — ${formatCents(item.price * item.amount)}`
+
+        const right = document.createElement('span')
+        right.className = 'flex items-center gap-2 shrink-0'
+
+        const amount = document.createElement('span')
+        amount.className = 'text-gray-600 tabular-nums'
+        amount.textContent = formatCents(item.price * item.amount)
 
         const remove = document.createElement('button')
+        remove.type = 'button'
         remove.className = 'text-red-600 font-bold px-2 rounded hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-500'
         remove.setAttribute('aria-label', `Remove one ${item.title}`)
         remove.textContent = '−'
@@ -110,10 +199,23 @@ function renderCart() {
             renderCart()
         })
 
+        right.appendChild(amount)
+        right.appendChild(remove)
         row.appendChild(label)
-        row.appendChild(remove)
+        row.appendChild(right)
         cartItemsEl.appendChild(row)
     })
+
+    // The empty-state line and the item count both track the cart length, so a
+    // shopper sees "1 item" and no "cart is empty" text the moment they add one.
+    const count = cartItems.reduce((sum, item) => sum + item.amount, 0)
+
+    if (cartEmptyEl !== null) {
+        cartEmptyEl.style.display = cartItems.length === 0 ? '' : 'none'
+    }
+    if (cartCountEl !== null) {
+        cartCountEl.textContent = `${count} item${count === 1 ? '' : 's'}`
+    }
 
     totalAmountEl.textContent = formatCents(totalCents(cartItems))
     payButton.disabled = cartItems.length === 0
