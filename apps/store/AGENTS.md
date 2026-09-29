@@ -36,6 +36,8 @@ tsconfig.json             extends astro/tsconfigs/strict
 public/favicon.svg        site icon
 wrangler.jsonc            Cloudflare Worker name + compatibility_date (merged by the adapter)
 src/pages/index.astro     the storefront (SSR); demo fixture OR resolved store, chosen by Host
+src/middleware.ts         proxies the www/pos hosts to their Pages origins; no-op otherwise
+src/lib/pages-proxy.ts    the Pages origin map and forwarding logic used by the middleware
 src/layouts/Layout.astro  HTML shell, meta/OG/canonical, imports global.css
 src/components/
   Storefront.astro        header, product grid, cart list, footer; DOM wiring only
@@ -44,6 +46,7 @@ src/components/
 src/lib/cart.ts           pure cart logic (addItem/removeItem/totalCents/formatCents)
 src/lib/cart.test.ts      node:test unit tests for the pure cart logic
 src/lib/store-host.ts     hostname -> DPNS label parsing/validation (STORE_DOMAIN, reserved list, isDemoHost)
+src/lib/store-host.test.ts node:test unit tests for the host parser
 src/lib/store-host.test.ts node:test unit tests for the host parser
 src/lib/store-api.ts      client for the `dashpoint-api` store + items resolver
 src/lib/store-api.test.ts node:test unit tests for the resolver client (injected fetch)
@@ -137,6 +140,19 @@ pnpm --filter @dashpoint/store audit     # dependency vulnerability scan
 
 ## Gotchas for agents
 
+- **`www` and `pos` are PROXIED, not routed.** This Worker owns the wildcard
+  route `*.dashpoint.store/*`, and Cloudflare does not reliably let a
+  more-specific literal route win over a wildcard. So `www` and `pos` are
+  forwarded from `src/middleware.ts` to their Pages origins. Consequences:
+  - **The forward must stay in middleware.** It was once in
+    `src/pages/index.astro`, which only matches `/`; every asset request
+    (`/_astro/...`, `/manifest.webmanifest`) then missed the proxy and 404'd,
+    serving a page whose own CSS and JS were dead. Middleware runs for all
+    paths. Do not move it back into the page.
+  - **Proxy targets must be the `*.pages.dev` aliases**
+    (`dashpoint-web.pages.dev`, `dashpoint-sale.pages.dev`), never the
+    `dashpoint.store` spellings — a fetch to those would match the same
+    wildcard, re-enter this Worker, and loop.
 - **Do not `read` binary assets** (`public/favicon.svg` and any future images,
   PDFs, archives). Verify them with `ls -la`, `file`, or `du` instead. Loading a
   large binary inflates the context window.
