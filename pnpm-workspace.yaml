@@ -11,3 +11,16 @@ onlyBuiltDependencies:
   - sharp
   - workerd
   - '@tailwindcss/oxide'
+
+# Ported from the former apps/store/pnpm-workspace.yaml when that file was
+# removed: a nested pnpm-workspace.yaml inside a workspace member is a second
+# configuration boundary, and these two security floors must apply to the whole
+# workspace, not one app.
+#
+# `minimumReleaseAgeExclude` pins the one release allowed to be younger than the
+# workspace's minimum release age. `overrides` are transitive security floors.
+minimumReleaseAgeExclude:
+  - astro@7.3.5
+overrides:
+  picomatch@<2.3.2: '>=2.3.2'
+  mdast-util-to-hast@<13.2.1: '>=13.2.1'

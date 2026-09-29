@@ -6,9 +6,10 @@
 //
 //   <USERNAME>.dashpoint.store
 //
-// The apex (`dashpoint.store`), `www`, and `demo` are NOT usernames — they are
-// the landing page and the demo. Everything else is treated as a candidate
-// DPNS label and handed to `isValidStoreName()`.
+// The apex (`dashpoint.store`), `www`, `demo` and `pos` are NOT usernames —
+// they are the landing page, the demo storefront, and the point of sale.
+// Everything else is treated as a candidate DPNS label and handed to
+// `isValidStoreName()`.
 //
 // WHY A USERNAME AND NOT AN IDENTIFIER
 // A Dash Platform Identifier is base58, and base58 is case-sensitive:
@@ -31,8 +32,41 @@
 /** The registrable domain the storefront serves under. */
 export const STORE_DOMAIN = 'dashpoint.store'
 
-/** Subdomains that are reserved and never treated as a username. */
-export const RESERVED_SUBDOMAINS = ['www', 'demo'] as const
+/**
+ * Subdomains that are reserved and never treated as a username.
+ *
+ * `pos` is reserved because `pos.dashpoint.store` is the point-of-sale app
+ * (`apps/pos`), not a merchant. Without it the host family
+ * `*.dashpoint.store` would route `pos.dashpoint.store/` into this storefront
+ * and try to resolve a DPNS username literally called `pos`.
+ */
+export const RESERVED_SUBDOMAINS = ['www', 'demo', 'pos'] as const
+
+/**
+ * The subdomain that serves the built-in demo storefront.
+ *
+ * The demo renders the local fixture in `src/data/products.ts` and never
+ * contacts the resolver, so `demo.dashpoint.store` works with no network and
+ * no registered store. It stays in `RESERVED_SUBDOMAINS` above, which is why
+ * `storeNameFromHostname()` returns `null` for it rather than a username.
+ */
+export const DEMO_SUBDOMAIN = 'demo'
+
+/**
+ * Is this hostname the demo storefront?
+ *
+ * Matches only `demo.dashpoint.store` (any case, optional port, optional
+ * trailing root dot) — not `demo.example.com`, and not a deeper name such as
+ * `demo.eu.dashpoint.store`. Kept beside `storeNameFromHostname()` so both
+ * read the same `STORE_DOMAIN` and cannot drift.
+ */
+export function isDemoHost(hostname: string): boolean {
+    if (typeof hostname !== 'string') return false
+
+    const host = hostname.replace(/\.$/, '').split(':')[0]
+
+    return host.toLowerCase() === `${DEMO_SUBDOMAIN}.${STORE_DOMAIN}`
+}
 
 /*
  * DPNS label rules, read from the contract rather than assumed.

@@ -1,22 +1,27 @@
 <!-- AGENTS.md -->
-# AGENTS.md — dashpoint.store (Homemade Crypto)
+# AGENTS.md — apps/store (Homemade Crypto storefront)
 
-Guidance for AI coding agents working in this repository.
+Guidance for AI coding agents working on the storefront app of the `dashpoint`
+monorepo. Monorepo-wide rules (commands, cents convention, why identifiers are
+never used as hostnames) are in the root `AGENTS.md`; this file covers the
+app itself.
 
-## Repository facts
+## App facts
 
-- **Purpose:** Browser-based kombucha storefront for the **Homemade Crypto**
-  brand. The customer views a grid of products and builds a cart; payment is not
-  yet wired to a backend.
+- **Purpose:** the storefront. Serves the root of every `*.dashpoint.store`
+  host that is not the apex: `demo.dashpoint.store` renders the built-in demo
+  fixture, and `<username>.dashpoint.store` renders the merchant's Dash Platform
+  store.
 - **Stack:** Astro `7.3.5` on the Cloudflare adapter (`@astrojs/cloudflare`) +
   Tailwind CSS `4.3.3` wired through `@tailwindcss/vite`. TypeScript via
-  `astro/tsconfigs/strict`. Package manager: pnpm (see `pnpm-lock.yaml`,
-  lockfileVersion `9.0`).
-- **Rendering:** `/demo` is prerendered to static HTML. `/` (the landing page)
-  and `/store` are server-rendered (`export const prerender = false`). `/` must
-  be server-rendered so `src/middleware.ts` can rewrite a store subdomain's root
-  to `/store`; a prerendered `/` would be served as a static file before the
-  route renderer runs, and the middleware would never fire. See
+  `astro/tsconfigs/strict`. Package manager: pnpm (workspace root
+  `pnpm-lock.yaml`; this app has no lockfile of its own).
+- **Rendering:** the single route `/` is server-rendered
+  (`export const prerender = false`). It must be, because it reads the request
+  `Host` header to decide what to serve — the demo fixture on
+  `demo.dashpoint.store`, a resolved Dash Platform store on
+  `<username>.dashpoint.store`. Cloudflare routes the `*.dashpoint.store` host
+  family to this Worker, so `/` IS the storefront for every one of them. See
   `src/pages/index.astro` for the full explanation.
 - **Site origin:** `https://dashpoint.store` (set as `site` in
   `astro.config.mjs`; drives canonical + `og:url` in `src/layouts/Layout.astro`).
@@ -25,30 +30,27 @@ Guidance for AI coding agents working in this repository.
 
 ```text
 astro.config.mjs          Astro config; `site`, Cloudflare adapter, Tailwind plugin
-package.json              name "dashpoint-store", version 25.10.4, MIT
+package.json              name "@dashpoint/store", version 25.10.4, MIT
 tsconfig.json             extends astro/tsconfigs/strict
 .prettierrc               Prettier: no semicolons, single quotes, astro + tailwind plugins
-pnpm-workspace.yaml       allowBuilds for @tailwindcss/oxide, esbuild, sharp
 public/favicon.svg        site icon
 wrangler.jsonc            Cloudflare Worker name + compatibility_date (merged by the adapter)
-src/middleware.ts         rewrites a store subdomain's `/` to `/store`
-src/pages/index.astro     landing page (SSR); features the demo in an inline <iframe>
-src/pages/demo.astro      the storefront demo (prerendered); imports products + <Storefront />
-src/pages/store.astro     hosted storefront (SSR); resolves the Host label to a Dash Platform store
+src/pages/index.astro     the storefront (SSR); demo fixture OR resolved store, chosen by Host
 src/layouts/Layout.astro  HTML shell, meta/OG/canonical, imports global.css
 src/components/
   Storefront.astro        header, product grid, cart list, footer; DOM wiring only
   ProductCard.astro       single product button (data-id/price-cents/title attributes)
+  StoreNotFound.astro     the "Store Not Found" panel and its reason text
 src/lib/cart.ts           pure cart logic (addItem/removeItem/totalCents/formatCents)
 src/lib/cart.test.ts      node:test unit tests for the pure cart logic
-src/lib/store-host.ts     hostname -> DPNS label parsing/validation (STORE_DOMAIN, reserved list)
+src/lib/store-host.ts     hostname -> DPNS label parsing/validation (STORE_DOMAIN, reserved list, isDemoHost)
 src/lib/store-host.test.ts node:test unit tests for the host parser
 src/lib/store-api.ts      client for the `dashpoint-api` store + items resolver
 src/lib/store-api.test.ts node:test unit tests for the resolver client (injected fetch)
 src/data/products.ts      the demo fixture products (single source of truth for the demo)
 src/types.ts              shared `Product` interface
 src/styles/global.css     contains only: @import "tailwindcss";
-public/_headers           Cloudflare Pages security headers + long-cache rules
+public/_headers           Cloudflare security headers + long-cache rules
 ```
 
 ## Shared API server — read this before adding any network call
@@ -67,10 +69,12 @@ each site.** The Worker source is the sibling repo
   `STORE_API_ORIGIN` for local development only.
   The demo's cart is in-memory and the Pay button still only shows an `alert()`;
   that path makes no network call.
-- **URL map:** `/` is the landing page, `/demo` is the demo storefront, and
-  `<USERNAME>.dashpoint.store/` is a merchant's hosted storefront. All build
-  from this one repo, so the demo cannot drift from what the landing page
-  advertises. Do not fork the storefront into a second repo.
+- **URL map:** `dashpoint.store/` is the landing page (`apps/web`),
+  `demo.dashpoint.store/` is the demo storefront, `pos.dashpoint.store/` is the
+  point of sale (`apps/pos`), and `<USERNAME>.dashpoint.store/` is a merchant's
+  hosted storefront. The demo, the POS and the hosted storefronts are all in
+  this monorepo, so the demo cannot drift from what the landing page advertises.
+  Do not fork the storefront into a second repo.
 - Any change to `/v1` behavior affects **both** `dashpoint.sale` (the POS) and
   `dashpoint.store` (this store). A change made for the POS is a change to this
   site's API, and vice versa.
@@ -86,12 +90,12 @@ each site.** The Worker source is the sibling repo
 
 The site builds to a **Cloudflare Worker** through the `@astrojs/cloudflare`
 adapter: `pnpm build` emits `dist/server` (the Worker) and `dist/client` (static
-assets), and the adapter merges the repo-root `wrangler.jsonc` into
+assets), and the adapter merges the `wrangler.jsonc` in this directory into
 `dist/server/wrangler.json`. The zone is `dashpoint.store`, shared with the API
-Worker: `../dashpoint-api/packages/api/wrangler.jsonc` routes `dashpoint.store/v1`
-and `dashpoint.store/v1/*` with `"zone_name": "dashpoint.store"`. The sibling
-`../dashqt.org/public/_headers` and `../sansbank.org/public/_headers` use the
-same `_headers` mechanism this repo mirrors.
+Worker: `dashpoint-api/packages/api/wrangler.jsonc` routes `dashpoint.store/v1`
+and `dashpoint.store/v1/*` with `"zone_name": "dashpoint.store"`. That Worker
+lives in the separate `sansbankdao/dashpoint-api` repository, not in this
+monorepo.
 
 - Security headers live in `public/_headers` (copied verbatim to `dist/_headers`
   by the build). Cloudflare Pages reads it; it is **not** an Astro file.
@@ -104,16 +108,16 @@ same `_headers` mechanism this repo mirrors.
 
 ## Commands
 
-Run from the repo root:
+From the **monorepo root**:
 
 ```sh
-pnpm install          # install dependencies
-pnpm dev              # astro dev, http://localhost:4321
-pnpm build            # astro build -> ./dist/
-pnpm preview          # preview the production build
-pnpm check            # astro check (types + content)
-pnpm test             # node --test src/lib/*.test.ts
-pnpm audit            # dependency vulnerability scan
+pnpm install                  # install the whole workspace
+pnpm --filter @dashpoint/store build     # -> apps/store/dist/
+pnpm --filter @dashpoint/store check     # astro check
+pnpm --filter @dashpoint/store test      # node --test src/lib/*.test.ts
+pnpm --filter @dashpoint/store dev       # astro dev
+pnpm --filter @dashpoint/store preview   # preview the production build
+pnpm --filter @dashpoint/store audit     # dependency vulnerability scan
 ```
 
 ## Conventions

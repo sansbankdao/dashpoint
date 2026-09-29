@@ -1,0 +1,16 @@
+# apps/web/public/_headers
+/*
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: SAMEORIGIN
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: geolocation=(), microphone=(), camera=()
+  # frame-src names the demo storefront explicitly: it is embedded in an iframe
+  # from `https://demo.dashpoint.store`, which is a different Worker, so
+  # `default-src 'self'` alone would block the embed.
+  Content-Security-Policy: default-src 'self'; img-src 'self' https: data:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'; frame-src https://demo.dashpoint.store; frame-ancestors 'self'; base-uri 'self'; form-action 'self'
+
+/_astro/*
+  cache-control: public,max-age=31536000,immutable
+
+/favicon.svg
+  cache-control: public,max-age=2628000

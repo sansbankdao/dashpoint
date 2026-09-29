@@ -1,0 +1,99 @@
+---
+// src/pages/index.astro
+//
+// The apex landing page, at `https://dashpoint.store`.
+//
+// This is a fully static build. It used to be server-rendered so that a
+// middleware could rewrite `<username>.dashpoint.store/` to `/store`, because
+// Astro serves `/` from this file and a prerendered `/` is returned by the
+// Cloudflare entry before the route renderer — or the middleware — ever runs.
+//
+// That workaround is gone. Merchant storefronts are now a separate Worker
+// (`apps/store`) that Cloudflare routes the `*.dashpoint.store` host family to,
+// so its `/` IS the storefront. This app only ever serves the apex, and there
+// is nothing left for it to classify per request.
+
+import Layout from '../layouts/Layout.astro'
+---
+
+<Layout title="Homemade Crypto" description="Small-batch kombucha, brewed at home and paid in crypto. Try the live storefront demo.">
+    <div class="min-h-screen bg-gray-800">
+        <!-- Hero -->
+        <header class="max-w-3xl mx-auto px-6 pt-16 pb-10 text-center">
+            <img src="https://placehold.co/100x100/A7D397/424769/png?text=K" alt="Homemade Crypto Logo" width="100" height="100" class="w-24 h-24 rounded-full mx-auto mb-6 border-2 border-gray-600">
+            <h1 class="text-5xl font-bold text-gray-50 mb-4">Homemade Crypto</h1>
+            <p class="text-lg text-gray-300 mb-8">
+                Small-batch kombucha, brewed at home and paid in crypto. No middlemen, no processing fees, no chargebacks.
+            </p>
+            <div class="flex flex-wrap items-center justify-center gap-4">
+                <a href="https://demo.dashpoint.store" class="bg-blue-600 text-white font-bold py-3 px-8 rounded-lg hover:bg-blue-700 transition-colors">
+                    Try the demo
+                </a>
+                <a href="https://dashpoint.store" class="border border-gray-600 text-gray-200 font-bold py-3 px-8 rounded-lg hover:bg-gray-700 transition-colors">
+                    dashpoint.store
+                </a>
+            </div>
+        </header>
+
+        <!-- Featured demo -->
+        <section class="max-w-5xl mx-auto px-6 pb-16">
+            <div class="bg-gray-50 rounded-2xl shadow-xl overflow-hidden">
+                <div class="grid md:grid-cols-2">
+                    <div class="p-8 flex flex-col justify-center">
+                        <span class="text-sm font-semibold uppercase tracking-wide text-blue-600 mb-2">Live demo</span>
+                        <h2 class="text-3xl font-bold text-gray-800 mb-4">The storefront, running right here</h2>
+                        <p class="text-gray-600 mb-6">
+                            Tap a bottle to add it to the cart, remove items with the minus button, and watch the total update in real time. This is the exact experience your customers get.
+                        </p>
+                        <ul class="text-gray-600 space-y-2 mb-8">
+                            <li>• Six flavours, priced per bottle</li>
+                            <li>• Live cart totals in integer cents — no rounding drift</li>
+                            <li>• Keyboard and screen-reader accessible</li>
+                        </ul>
+                        <div class="flex flex-wrap gap-3">
+                            <a href="https://demo.dashpoint.store" class="bg-blue-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-blue-700 transition-colors">
+                                Open full demo
+                            </a>
+                            <a href="https://demo.dashpoint.store" class="border border-gray-300 text-gray-700 font-bold py-3 px-6 rounded-lg hover:bg-gray-100 transition-colors">
+                                Launch storefront
+                            </a>
+                        </div>
+                    </div>
+                    <div class="bg-gray-800 p-8 flex items-center justify-center">
+                        <iframe
+                            src="https://demo.dashpoint.store"
+                            title="Homemade Crypto storefront demo"
+                            loading="lazy"
+                            class="w-full max-w-md h-[520px] rounded-xl border border-gray-700 bg-gray-800"
+                        ></iframe>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Features -->
+        <section class="max-w-5xl mx-auto px-6 pb-20">
+            <div class="grid md:grid-cols-3 gap-6">
+                <div class="bg-gray-700 rounded-2xl p-6">
+                    <h3 class="text-xl font-bold text-gray-50 mb-2">Brewed at home</h3>
+                    <p class="text-gray-300">Every bottle is fermented in small batches, never factory-farmed.</p>
+                </div>
+                <div class="bg-gray-700 rounded-2xl p-6">
+                    <h3 class="text-xl font-bold text-gray-50 mb-2">Paid in crypto</h3>
+                    <p class="text-gray-300">Settle directly to your wallet. No processor sits between you and the sale.</p>
+                </div>
+                <div class="bg-gray-700 rounded-2xl p-6">
+                    <h3 class="text-xl font-bold text-gray-50 mb-2">Open storefront</h3>
+                    <p class="text-gray-300">Built on Astro and Tailwind. Fork it, brand it, and start selling.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Footer -->
+        <footer class="border-t border-gray-700">
+            <div class="max-w-5xl mx-auto px-6 py-8 text-center text-gray-400">
+                <p>Homemade Crypto — maintained by Sansbank DAO.</p>
+            </div>
+        </footer>
+    </div>
+</Layout>

@@ -1,15 +1,18 @@
 <!-- AGENTS.md -->
-# AGENTS.md — dashpoint.sale (DashPoint POS)
+# AGENTS.md — apps/pos (DashPoint POS)
 
-Guidance for AI coding agents working in this repository.
+Guidance for AI coding agents working on the point-of-sale app of the
+`dashpoint` monorepo. Monorepo-wide rules are in the root `AGENTS.md`; this file
+covers the POS itself.
 
-## Repository facts
+## App facts
 
 - **Purpose:** Browser-based USD point-of-sale keypad UI. A clerk enters a dollar
   amount, optionally applies a discount and a tip, and presses **Pay Now**.
-- **Stack:** Astro `5.14.1` (static site, `output` default) + Tailwind CSS
-  `4.1.14` wired through `@tailwindcss/vite`. TypeScript via
-  `astro/tsconfigs/strict`. Package manager: pnpm (see `pnpm-lock.yaml`).
+- **Stack:** Astro `7.3.5` (static site, `output` default) + Tailwind CSS
+  `4.3.3` wired through `@tailwindcss/vite`. TypeScript via
+  `astro/tsconfigs/strict`. Package manager: pnpm (workspace root
+  `pnpm-lock.yaml`; this app has no lockfile of its own).
 - **No backend exists in this repo.** The payment API is the separate
   `dashpoint-api` Worker (see "Deployed API" below), reached same-origin at
   `/v1`. `POST /v1/invoices` from the legacy engineering handoff does not exist.
@@ -20,7 +23,7 @@ Guidance for AI coding agents working in this repository.
 
 ```text
 astro.config.mjs          Astro config; registers the Tailwind Vite plugin
-package.json              name "dashpoint-sale", version 25.10.3, MIT
+package.json              name "@dashpoint/pos", version 25.10.3, MIT
 tsconfig.json             extends astro/tsconfigs/strict
 public/favicon.svg        site icon
 public/manifest.webmanifest  PWA manifest (start_url "/", display standalone)
@@ -34,9 +37,10 @@ src/components/
   Display.astro           renders USD amount, total, calculation text
   ModeTabs.astro          Amount / Discount / Tip tabs (Discount & Tip disabled
                           until hasBaseAmount is true)
-  ModeContent.astro       per-mode helper content
+  ModeContent.astro       per-mode helper content, including the tip preset buttons
   Keypad.astro            0-9 keypad plus Clear and Add buttons
-  TipSelector.astro       tip preset buttons
+src/lib/config.ts         stored POS config contract (PosConfig, coerceConfig, load/save/clear)
+src/lib/config.test.ts    node:test unit tests for the config coercion rules
 src/styles/global.css     contains only: @import "tailwindcss";
 ```
 
@@ -108,14 +112,15 @@ src/styles/global.css     contains only: @import "tailwindcss";
 
 ## Commands
 
-Run from the repo root:
+From the **monorepo root**:
 
 ```sh
-pnpm install          # install dependencies
-pnpm dev              # astro dev, http://localhost:4321
-pnpm build            # astro build -> ./dist/
-pnpm preview          # preview the production build
-pnpm astro check      # astro/TypeScript diagnostics
+pnpm install                            # install the whole workspace
+pnpm --filter @dashpoint/pos dev        # astro dev, http://localhost:4321
+pnpm --filter @dashpoint/pos build      # astro build -> apps/pos/dist/
+pnpm --filter @dashpoint/pos preview    # preview the production build
+pnpm --filter @dashpoint/pos check      # astro check (types)
+pnpm --filter @dashpoint/pos test       # node --test src/lib/*.test.ts
 ```
 
 ## Conventions
@@ -186,7 +191,7 @@ on this zone and on `dashpoint.store`, in front of the static Pages site.
   not add it to any tracked file; the POS has no need for it.
 - `partnerKeyPresent: true` from `/v1/health` and `authenticated: true` on a
   quote are the observable proof that the binding resolves.
-- `/admin` **is deployed** at `https://dashpoint.sale/admin`. It is marked
+- `/admin` **is deployed** at `https://pos.dashpoint.store/admin`. It is marked
   `noindex, nofollow` and is not linked from the POS, but it is publicly
   reachable, so **no secret may ever be entered into it**. It stores display
   settings and the merchant payout address in localStorage, which is

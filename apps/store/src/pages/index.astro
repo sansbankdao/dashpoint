@@ -1,100 +1,143 @@
 ---
-// src/pages/index.astro
+// apps/store/src/pages/index.astro
 //
-// The apex landing page. This is deliberately NOT prerendered.
+// The storefront, served from the root of every `*.dashpoint.store` host that
+// is not the apex. Cloudflare routes the host family here, so this one route is
+// both the demo and every merchant's shop:
 //
-// Astro's Cloudflare entry serves a matching static file BEFORE it runs the
-// route renderer (see the adapter's generated `entry.mjs`, which calls
-// `matchStaticAsset` first). A prerendered `/` therefore returns
-// `dist/client/index.html` directly and `src/middleware.ts` never runs, so
-// `<username>.dashpoint.store/` would show this landing page instead of the
-// merchant's storefront. Server-rendering `/` lets it match a real route, which
-// runs the middleware and lets it rewrite a store subdomain to `/store`.
+//   demo.dashpoint.store     -> the built-in demo fixture (no network)
+//   <USERNAME>.dashpoint.store -> GET /v1/store -> the identity's proven `store`
+//                                 document -> its active `storeItem` documents
 //
-// The output is still a plain HTML page; only the delivery path changes.
+// The page resolves the requested hostname and renders it. On a merchant host:
+//
+//   hostname label -> GET /v1/store -> the identity's proven `store` document
+//                                  -> its active `storeItem` documents
+//
+// The endpoint lives in the `dashpoint-api` Worker, which is routed in front of
+// this site at dashpoint.store/v1/*. It returns a store ONLY after the store
+// document's grovedb proof has verified, and this page renders the store only
+// when the response says so. A malformed host, an unregistered name, an
+// identity with no store, or an unreachable API all render "Store Not Found"
+// with a reason — the page never invents a storefront.
+//
+// Astro is a static build, so `Astro.request` carries the real request Host
+// header only when this page is server-rendered. `prerender = false` is what
+// makes that possible; without it the header is empty at build time and every
+// host would render "Store Not Found". The hostname is read here, and the SAME
+// functions are unit-tested in src/lib/store-host.test.ts.
+//
+// WHY THE FETCH HAPPENS ON THE SERVER
+// The page is already server-rendered to read the Host header, so resolving the
+// store in the same pass means the shop is in the first HTML response — no
+// client-side loading state, no flash of an empty store, and no CORS concern
+// (the request is same-origin from the Worker's point of view).
+
 export const prerender = false
 
 import Layout from '../layouts/Layout.astro'
+import Storefront from '../components/Storefront.astro'
+import StoreNotFound from '../components/StoreNotFound.astro'
+import { products as demoProducts } from '../data/products'
+import {
+    isDemoHost,
+    storeNameFromHostname,
+    isValidStoreName,
+    normalizeStoreName,
+} from '../lib/store-host'
+import {
+    fetchStore,
+    fetchStoreItems,
+    toProduct,
+    stringProperty,
+} from '../lib/store-api'
+
+const hostname = Astro.request.headers.get('host') ?? ''
+
+/*
+ * The demo is a first-class host, not a special case bolted onto the resolver.
+ * `demo.dashpoint.store` is in RESERVED_SUBDOMAINS, so `storeNameFromHostname`
+ * returns null for it and it can never be mistaken for a merchant named "demo".
+ * Here it short-circuits before any network call and renders the local fixture.
+ */
+const isDemo = isDemoHost(hostname)
+
+const candidate = isDemo ? null : storeNameFromHostname(hostname)
+const isValid = candidate !== null && isValidStoreName(candidate)
+
+/* The value a DPNS lookup compares against. Computed here so the reason text
+ * can show the normalized form the network will actually use. */
+const normalized = candidate === null ? null : normalizeStoreName(candidate)
+
+/* Only a syntactically valid, non-demo host is worth a network call. */
+const storeLookup = isValid && candidate !== null ? await fetchStore(candidate) : null
+
+/*
+ * The products come from the resolver, not from a local fixture, once a store
+ * is found. The listing is a SECOND proven read, keyed by the store document id
+ * the first read returned, so a store's products are shown only after their own
+ * proof verified. When the item read fails the page still renders the store,
+ * with no products, because a product-list failure must not hide the store.
+ *
+ * The demo keeps the local fixture: it is the one host that is meant to render
+ * with no store registered and no API reachable.
+ */
+let products = demoProducts
+let itemsVerified = false
+
+if (storeLookup !== null && storeLookup.status === 'found') {
+    const items = await fetchStoreItems(storeLookup.store.documentId)
+
+    if (items.status === 'found') {
+        products = items.items.map(toProduct).filter((product): product is NonNullable<typeof product> => product !== null)
+        itemsVerified = true
+    }
+}
+
+/*
+ * Pick the sentence shown under "Store Not Found".
+ *
+ * A malformed host is answered without a network call, so it is distinguished
+ * from the resolver's own reasons: the caller can tell a typo from a name that
+ * is simply unregistered.
+ */
+function reasonFor(lookup: typeof storeLookup, candidate: string | null): string {
+    if (candidate === null) return 'This address is not a store on Dash Platform.'
+
+    if (!isValidStoreName(candidate)) {
+        return `\u201c${candidate}\u201d is not a valid Dash Platform username (3 to 63 letters, digits or hyphens, no leading or trailing hyphen).`
+    }
+
+    if (lookup === null) return 'This address is not a store on Dash Platform.'
+
+    return lookup.status === 'found' ? 'This address is not a store on Dash Platform.' : lookup.reason
+}
 ---
 
-<Layout title="Homemade Crypto" description="Small-batch kombucha, brewed at home and paid in crypto. Try the live storefront demo.">
-    <div class="min-h-screen bg-gray-800">
-        <!-- Hero -->
-        <header class="max-w-3xl mx-auto px-6 pt-16 pb-10 text-center">
-            <img src="https://placehold.co/100x100/A7D397/424769/png?text=K" alt="Homemade Crypto Logo" width="100" height="100" class="w-24 h-24 rounded-full mx-auto mb-6 border-2 border-gray-600">
-            <h1 class="text-5xl font-bold text-gray-50 mb-4">Homemade Crypto</h1>
-            <p class="text-lg text-gray-300 mb-8">
-                Small-batch kombucha, brewed at home and paid in crypto. No middlemen, no processing fees, no chargebacks.
-            </p>
-            <div class="flex flex-wrap items-center justify-center gap-4">
-                <a href="/demo" class="bg-blue-600 text-white font-bold py-3 px-8 rounded-lg hover:bg-blue-700 transition-colors">
-                    Try the demo
-                </a>
-                <a href="https://demo.dashpoint.store" class="border border-gray-600 text-gray-200 font-bold py-3 px-8 rounded-lg hover:bg-gray-700 transition-colors">
-                    demo.dashpoint.store
-                </a>
-            </div>
-        </header>
-
-        <!-- Featured demo -->
-        <section class="max-w-5xl mx-auto px-6 pb-16">
-            <div class="bg-gray-50 rounded-2xl shadow-xl overflow-hidden">
-                <div class="grid md:grid-cols-2">
-                    <div class="p-8 flex flex-col justify-center">
-                        <span class="text-sm font-semibold uppercase tracking-wide text-blue-600 mb-2">Live demo</span>
-                        <h2 class="text-3xl font-bold text-gray-800 mb-4">The storefront, running right here</h2>
-                        <p class="text-gray-600 mb-6">
-                            Tap a bottle to add it to the cart, remove items with the minus button, and watch the total update in real time. This is the exact experience your customers get.
-                        </p>
-                        <ul class="text-gray-600 space-y-2 mb-8">
-                            <li>• Six flavours, priced per bottle</li>
-                            <li>• Live cart totals in integer cents — no rounding drift</li>
-                            <li>• Keyboard and screen-reader accessible</li>
-                        </ul>
-                        <div class="flex flex-wrap gap-3">
-                            <a href="/demo" class="bg-blue-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-blue-700 transition-colors">
-                                Open full demo
-                            </a>
-                            <a href="/demo" class="border border-gray-300 text-gray-700 font-bold py-3 px-6 rounded-lg hover:bg-gray-100 transition-colors">
-                                Launch storefront
-                            </a>
-                        </div>
-                    </div>
-                    <div class="bg-gray-800 p-8 flex items-center justify-center">
-                        <iframe
-                            src="/demo"
-                            title="Homemade Crypto storefront demo"
-                            loading="lazy"
-                            class="w-full max-w-md h-[520px] rounded-xl border border-gray-700 bg-gray-800"
-                        ></iframe>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <!-- Features -->
-        <section class="max-w-5xl mx-auto px-6 pb-20">
-            <div class="grid md:grid-cols-3 gap-6">
-                <div class="bg-gray-700 rounded-2xl p-6">
-                    <h3 class="text-xl font-bold text-gray-50 mb-2">Brewed at home</h3>
-                    <p class="text-gray-300">Every bottle is fermented in small batches, never factory-farmed.</p>
-                </div>
-                <div class="bg-gray-700 rounded-2xl p-6">
-                    <h3 class="text-xl font-bold text-gray-50 mb-2">Paid in crypto</h3>
-                    <p class="text-gray-300">Settle directly to your wallet. No processor sits between you and the sale.</p>
-                </div>
-                <div class="bg-gray-700 rounded-2xl p-6">
-                    <h3 class="text-xl font-bold text-gray-50 mb-2">Open storefront</h3>
-                    <p class="text-gray-300">Built on Astro and Tailwind. Fork it, brand it, and start selling.</p>
-                </div>
-            </div>
-        </section>
-
-        <!-- Footer -->
-        <footer class="border-t border-gray-700">
-            <div class="max-w-5xl mx-auto px-6 py-8 text-center text-gray-400">
-                <p>Homemade Crypto — maintained by Sansbank DAO.</p>
-            </div>
-        </footer>
-    </div>
-</Layout>
+{isDemo ? (
+    <Layout title="Homemade Crypto — Demo" description="Interactive demo of the Homemade Crypto kombucha storefront.">
+        <Storefront products={products} />
+    </Layout>
+) : storeLookup !== null && storeLookup.status === 'found' ? (
+    <Layout
+        title={`${stringProperty(storeLookup.store.properties, 'name') ?? candidate} — Stores on Dash Platform`}
+        description={stringProperty(storeLookup.store.properties, 'description') ?? 'A storefront powered by Dash Platform.'}
+    >
+        <Storefront
+            products={products}
+            storeName={stringProperty(storeLookup.store.properties, 'name') ?? candidate}
+            storeDescription={stringProperty(storeLookup.store.properties, 'description')}
+            storeLogoUrl={stringProperty(storeLookup.store.properties, 'logoUrl') ?? stringProperty(storeLookup.store.properties, 'bannerUrl')}
+            proofVerified={storeLookup.store.proofVerified}
+            itemsVerified={itemsVerified}
+        />
+    </Layout>
+) : (
+    <Layout title="Store Not Found" description="No Dash Platform store exists at this address.">
+        <StoreNotFound
+            storeId={candidate}
+            reason={reasonFor(storeLookup, candidate)}
+            normalized={normalized}
+        />
+    </Layout>
+)}

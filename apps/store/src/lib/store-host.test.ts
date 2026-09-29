@@ -7,10 +7,12 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
     storeNameFromHostname,
+    isDemoHost,
     isValidStoreName,
     normalizeStoreName,
     STORE_DOMAIN,
     RESERVED_SUBDOMAINS,
+    DEMO_SUBDOMAIN,
     STORE_NAME_MIN_LENGTH,
     STORE_NAME_MAX_LENGTH,
 } from './store-host.ts'
@@ -19,8 +21,31 @@ test('STORE_DOMAIN is dashpoint.store', () => {
     assert.equal(STORE_DOMAIN, 'dashpoint.store')
 })
 
-test('reserves www and demo', () => {
-    assert.deepEqual([...RESERVED_SUBDOMAINS], ['www', 'demo'])
+test('reserves www, demo and pos', () => {
+    assert.deepEqual([...RESERVED_SUBDOMAINS], ['www', 'demo', 'pos'])
+})
+
+test('DEMO_SUBDOMAIN names the host that serves the local fixture', () => {
+    assert.equal(DEMO_SUBDOMAIN, 'demo')
+})
+
+test('isDemoHost matches only demo.dashpoint.store', () => {
+    assert.equal(isDemoHost('demo.dashpoint.store'), true)
+    assert.equal(isDemoHost('DEMO.DashPoint.Store'), true)
+    assert.equal(isDemoHost('demo.dashpoint.store.'), true)
+    assert.equal(isDemoHost('demo.dashpoint.store:443'), true)
+})
+
+test('isDemoHost rejects the apex, other subdomains and other domains', () => {
+    assert.equal(isDemoHost('dashpoint.store'), false)
+    assert.equal(isDemoHost('www.dashpoint.store'), false)
+    /* `pos` is reserved but is NOT the demo host: it is the POS app. */
+    assert.equal(isDemoHost('pos.dashpoint.store'), false)
+    assert.equal(isDemoHost('homemadecrypto.dashpoint.store'), false)
+    /* A deeper name is a different host, not the demo. */
+    assert.equal(isDemoHost('demo.eu.dashpoint.store'), false)
+    /* Same label, different registrable domain. */
+    assert.equal(isDemoHost('demo.example.com'), false)
 })
 
 test('length bounds come from the DPNS contract schema', () => {
@@ -51,6 +76,11 @@ test('returns null for reserved subdomains', () => {
     assert.equal(storeNameFromHostname('demo.dashpoint.store'), null)
     assert.equal(storeNameFromHostname('WWW.dashpoint.store'), null)
     assert.equal(storeNameFromHostname('Demo.dashpoint.store'), null)
+})
+
+test('returns null for pos, which is the POS app and not a merchant', () => {
+    assert.equal(storeNameFromHostname('pos.dashpoint.store'), null)
+    assert.equal(storeNameFromHostname('POS.dashpoint.store'), null)
 })
 
 test('returns null for nested labels', () => {

@@ -118,7 +118,12 @@ export async function isValidDashAddress(address: string): Promise<boolean> {
         && second[3] === checksum[3]
 }
 
-function coerceConfig(raw: Partial<PosConfig> | null): PosConfig {
+/*
+ * Exported for the unit tests in src/lib/config.test.ts. The coercion rules
+ * decide what the register sees, so they are tested directly rather than only
+ * through loadConfig().
+ */
+export function coerceConfig(raw: Partial<PosConfig> | null): PosConfig {
     const merged = { ...DEFAULT_CONFIG, ...(raw ?? {}) }
 
     merged.storeName = typeof merged.storeName === 'string' && merged.storeName.trim()

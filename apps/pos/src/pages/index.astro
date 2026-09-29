@@ -702,6 +702,15 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
             const ctx = canvas.getContext('2d')
             if (!ctx) return
 
+            /*
+             * `frame` is a hoisted function declaration, so TypeScript cannot
+             * carry the `if (!ctx) return` narrowing above into it. `context`
+             * is that same, already-proven-non-null value, captured under a
+             * name the closure can trust. Runtime behaviour is unchanged: the
+             * guard still runs first, and `context` is never assigned.
+             */
+            const context = ctx
+
             const dpr = window.devicePixelRatio || 1
             const w = canvas.clientWidth || window.innerWidth
             const h = canvas.clientHeight || window.innerHeight
@@ -725,24 +734,24 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
 
             function frame(now: number) {
                 const elapsed = now - started
-                ctx.clearRect(0, 0, w, h)
+                context.clearRect(0, 0, w, h)
                 for (const p of parts) {
                     p.vy += gravity
                     p.x += p.vx
                     p.y += p.vy
                     p.rot += p.spin
-                    ctx.save()
-                    ctx.translate(p.x, p.y)
-                    ctx.rotate(p.rot)
-                    ctx.fillStyle = p.color
-                    ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size * 0.6)
-                    ctx.restore()
+                    context.save()
+                    context.translate(p.x, p.y)
+                    context.rotate(p.rot)
+                    context.fillStyle = p.color
+                    context.fillRect(-p.size / 2, -p.size / 2, p.size, p.size * 0.6)
+                    context.restore()
                 }
                 /* Stop once the last piece has fallen past the fold. */
                 if (elapsed < 2200) {
                     confettiTimer = window.requestAnimationFrame(frame)
                 } else {
-                    ctx.clearRect(0, 0, w, h)
+                    context.clearRect(0, 0, w, h)
                     confettiTimer = null
                 }
             }
