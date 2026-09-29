@@ -33,6 +33,17 @@
 // binding must name a real namespace or the deploy fails before it starts.
 // The namespace was created for this Worker with
 // `wrangler kv namespace create SESSION`.
+//
+// WHY THE `API` SERVICE BINDING IS HERE
+// This Worker owns the `*.dashpoint.store/*` route. A plain `fetch()` from
+// inside it to `https://dashpoint.store/v1/store` does NOT reach the
+// `dashpoint-api` Worker: the request is resolved within the same zone, the
+// wildcard route re-enters this Worker, and the response is the landing page as
+// `200 text/html` instead of the API's JSON. A service binding is a direct
+// Worker-to-Worker call that never consults routes or DNS, so it is the only
+// way to reach the resolver from a Worker that is itself on the wildcard.
+// `src/pages/index.astro` prefers this binding and falls back to HTTP fetch
+// when it is absent (astro dev, unit tests).
 {
     "name": "dashpoint-store",
     "compatibility_date": "2025-01-29",
@@ -40,6 +51,12 @@
         {
             "binding": "SESSION",
             "id": "42f79c4ee9bc4879b55a5ab10ae38d56"
+        }
+    ],
+    "services": [
+        {
+            "binding": "API",
+            "service": "dashpoint-api"
         }
     ]
 }

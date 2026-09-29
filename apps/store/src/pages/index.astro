@@ -52,6 +52,72 @@ import {
     stringProperty,
 } from '../lib/store-api'
 
+/*
+ * Reach the store resolver over a SERVICE BINDING rather than an HTTP fetch.
+ *
+ * WHY. This Worker is bound to the `*.dashpoint.store/*` route, and a plain
+ * `fetch('https://dashpoint.store/v1/store')` from inside it does NOT reach the
+ * `dashpoint-api` Worker. It is resolved within the same zone, the wildcard
+ * route re-enters this Worker, and `/v1/store` comes back as the landing page:
+ * `200 text/html`. `store-api.ts` then fails `response.json()` and every
+ * non-demo host renders "The store resolver returned a non-JSON response."
+ * That is exactly what `store.dashpoint.store`, `homemadecrypto.dashpoint.store`
+ * and every `<username>.dashpoint.store` showed. The same code running on
+ * `*.workers.dev` (no zone route) reaches the API correctly, which is what
+ * isolates the cause to the edge re-route rather than to the client.
+ *
+ * A service binding is a direct Worker-to-Worker call: it names the script and
+ * never consults routes, DNS or the zone, so the wildcard cannot shadow it.
+ * The binding is declared as `API` in wrangler.jsonc.
+ *
+ * WHY `cloudflare:workers` AND NOT `Astro.locals.runtime.env`
+ * The @astrojs/cloudflare adapter REMOVED `Astro.locals.runtime.env` in Astro
+ * v6; the getter now throws (see its `createLocals` in cf-helpers.js). The
+ * supported replacement is the `cloudflare:workers` module, which the adapter
+ * marks external so workerd supplies it at runtime.
+ *
+ * THE IMPORT IS DYNAMIC AND GUARDED ON PURPOSE
+ * `cloudflare:workers` only exists inside workerd. `astro dev` and the
+ * `node --test` unit tests have no such module, so a static import would break
+ * both. The import is therefore attempted at request time and any failure
+ * falls back to the real global `fetch`, which is what dev and tests want.
+ *
+ * The fallback keeps `fetchStore`/`fetchStoreItems` unchanged: both already
+ * accept an injected `fetchImpl`, so no signature changes are needed.
+ */
+type ResolverBinding = { fetch: typeof fetch }
+
+async function resolveApiBinding(): Promise<ResolverBinding | undefined> {
+    try {
+        const mod = (await import(/* @vite-ignore */ 'cloudflare:workers')) as {
+            env?: Record<string, unknown>
+        }
+
+        const binding = mod.env?.API
+
+        return typeof binding === 'object' && binding !== null && 'fetch' in binding
+            ? (binding as ResolverBinding)
+            : undefined
+    } catch {
+        /* Not running in workerd (astro dev, node --test): no binding to use. */
+        return undefined
+    }
+}
+
+const resolverBinding = await resolveApiBinding()
+
+/*
+ * The `fetch` handed to `store-api.ts`. When the binding is present it rewrites
+ * nothing about the URL: `dashpoint-api` is the Worker that already answers
+ * `/v1/store`, so the same absolute URL is passed through and the binding only
+ * changes HOW the request is delivered. When the binding is absent the real
+ * global `fetch` is used, unchanged.
+ */
+const resolverFetch: typeof fetch =
+    resolverBinding === undefined
+        ? fetch
+        : (input: RequestInfo | URL, init?: RequestInit) => resolverBinding.fetch(input as RequestInfo, init)
+
 const hostname = Astro.request.headers.get('host') ?? ''
 
 /*
@@ -70,7 +136,7 @@ const isValid = candidate !== null && isValidStoreName(candidate)
 const normalized = candidate === null ? null : normalizeStoreName(candidate)
 
 /* Only a syntactically valid, non-demo host is worth a network call. */
-const storeLookup = isValid && candidate !== null ? await fetchStore(candidate) : null
+const storeLookup = isValid && candidate !== null ? await fetchStore(candidate, resolverFetch) : null
 
 /*
  * The products come from the resolver, not from a local fixture, once a store
@@ -86,7 +152,7 @@ let products = demoProducts
 let itemsVerified = false
 
 if (storeLookup !== null && storeLookup.status === 'found') {
-    const items = await fetchStoreItems(storeLookup.store.documentId)
+    const items = await fetchStoreItems(storeLookup.store.documentId, resolverFetch)
 
     if (items.status === 'found') {
         products = items.items.map(toProduct).filter((product): product is NonNullable<typeof product> => product !== null)
