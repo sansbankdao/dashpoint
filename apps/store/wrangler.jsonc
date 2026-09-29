@@ -17,10 +17,29 @@
 //
 // The real fix is `export const prerender = false` in `src/pages/index.astro`:
 // with no `dist/client/index.html`, `/` has no static file to short-circuit on,
-// so it matches a real route and `src/middleware.ts` runs and can rewrite a
-// store subdomain to `/store`. Static assets (`/_astro/*`, `/demo`, ...) are
-// still served directly by the edge.
+// so it matches a real route. That single route reads the request `Host` header
+// itself and renders the demo fixture on `demo.dashpoint.store`, or resolves the
+// DPNS username on `<username>.dashpoint.store`. There is no middleware and no
+// `/store` route: `src/middleware.ts`, `src/pages/demo.astro` and
+// `src/pages/store.astro` were all removed when the three apps were split, and
+// `src/lib/store-host.ts` is what decides which hostname is which. Static assets
+// (`/_astro/*`, `/favicon.svg`, ...) are still served directly by the edge.
+//
+// WHY THE `SESSION` KV BINDING IS HERE
+// The @astrojs/cloudflare adapter always emits a `sessionKVBindingName` of
+// `SESSION` and, in `entry.mjs`, reaches for `env["SESSION"]` guarded by an
+// `if`. This app never reads it (nothing under `src/` references sessions), but
+// `wrangler deploy` refuses a `kv_namespaces` entry that has no `id`, so the
+// binding must name a real namespace or the deploy fails before it starts.
+// The namespace was created for this Worker with
+// `wrangler kv namespace create SESSION`.
 {
     "name": "dashpoint-store",
-    "compatibility_date": "2025-01-29"
+    "compatibility_date": "2025-01-29",
+    "kv_namespaces": [
+        {
+            "binding": "SESSION",
+            "id": "42f79c4ee9bc4879b55a5ab10ae38d56"
+        }
+    ]
 }
