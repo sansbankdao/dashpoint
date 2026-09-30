@@ -1,0 +1,367 @@
+---
+// apps/store/src/pages/create-store.astro
+//
+// Create a store on Dash Platform.
+//
+// WHY THIS PAGE IS STATIC AND DOES NO SIGNING
+// -------------------------------------------
+// This page renders a form and, later, a DashConnect QR code. It performs NO
+// Platform write and holds NO key. The write path is deliberately absent for
+// now: DashConnect is the PREFERRED authorization mechanism and is expected
+// shortly, so the signing step is left as a single, clearly-marked seam
+// (`createStoreDocument`) that DashConnect will fill in. Until then the form
+// validates input and reports exactly what it WOULD submit.
+//
+// AUTHORIZATION WILL BE A QR CODE, NOT A TYPED KEY
+// ------------------------------------------------
+// Per the deliberate decision this session, a Critical-authority key is never
+// entered into a web form. `/admin` is publicly reachable and a Critical key
+// can update the identity and move funds, so the storefront must never hold
+// one. When DashConnect ships the user authorizes by scanning a QR code; the
+// key stays in their wallet. The scoped-key flow (a HIGH/AUTHENTICATION key
+// generated offline by scripts/gen-auth-key.mjs) is the fallback for local
+// testing and is likewise never typed into this page.
+//
+// THE SCHEMA IS THE LIVE YAPPR CONTRACT, NOT AN INVENTED ONE
+// ----------------------------------------------------------
+// The form's fields are exactly the writable fields of the `store` document
+// type in the Yappr contract that the resolver already reads, so a store
+// created here is visible to BOTH yappr and dashpoint.store. Required fields
+// are `$createdAt` (set by the platform, not by us), `name`, and `status`.
+// Verified against the live contract (`getDataContract` for
+// `2AUBj86MGTsXP7A3ekD62YoTeDwtJe5b9MxwkWwdg6Ba`) and against a real decoded
+// document (`?name=test` returns name/description/logoUrl/status/
+// defaultCurrency). Full reasoning: packages/api/src/lib/store.ts.
+import Layout from '../layouts/Layout.astro'
+import { STORE_STATUSES } from '../lib/create-store'
+---
+
+<Layout title="Create a Store — Homemade Crypto">
+    <main class="mx-auto max-w-3xl px-4 py-12 text-gray-100">
+        <header class="mb-10">
+            <p class="mb-2 text-sm uppercase tracking-widest text-blue-400">
+                Homemade Crypto
+            </p>
+            <h1 class="text-4xl font-bold">Create a Store</h1>
+            <p class="mt-4 text-gray-300">
+                Publish a storefront on Dash Platform. The store is written to
+                the public Yappr storefront contract, so it is visible from
+                both yappr and <code>dashpoint.store</code>.
+            </p>
+        </header>
+
+        <div class="mb-8 rounded-lg border border-blue-800 bg-blue-950/40 p-4 text-sm text-blue-100">
+            <p class="font-semibold">Authorization is by QR code.</p>
+            <p class="mt-1">
+                DashConnect is the preferred way to authorize this write and is
+                expected shortly. You will scan a QR code from your wallet; no
+                private key is ever typed into this page.
+            </p>
+        </div>
+
+        <form id="create-store-form" class="space-y-6">
+            <!-- OWNER -->
+            <fieldset class="space-y-4 rounded-lg border border-gray-700 p-4">
+                <legend class="px-1 text-sm font-semibold uppercase tracking-wide text-gray-400">
+                    Owner
+                </legend>
+
+                <label class="block">
+                    <span class="mb-1 block text-sm font-medium">DPNS name</span>
+                    <input
+                        id="owner-name"
+                        name="ownerName"
+                        type="text"
+                        required
+                        pattern="[a-zA-Z0-9][a-zA-Z0-9-]{1,61}[a-zA-Z0-9]"
+                        placeholder="atlanta-degen-for-life"
+                        class="w-full rounded border border-gray-600 bg-gray-900 px-3 py-2 text-gray-100 placeholder-gray-500 focus:border-blue-500 focus:outline-none"
+                    />
+                    <span class="mt-1 block text-xs text-gray-400">
+                        The identity that owns this store. Written as
+                        <code>$ownerId</code>; the contract allows one store per
+                        identity.
+                    </span>
+                </label>
+            </fieldset>
+
+            <!-- STORE -->
+            <fieldset class="space-y-4 rounded-lg border border-gray-700 p-4">
+                <legend class="px-1 text-sm font-semibold uppercase tracking-wide text-gray-400">
+                    Store
+                </legend>
+
+                <label class="block">
+                    <span class="mb-1 block text-sm font-medium">
+                        Name <span class="text-red-400">*</span>
+                    </span>
+                    <input
+                        id="store-name"
+                        name="name"
+                        type="text"
+                        required
+                        maxlength="100"
+                        placeholder="Little Gem Shop"
+                        class="w-full rounded border border-gray-600 bg-gray-900 px-3 py-2 text-gray-100 placeholder-gray-500 focus:border-blue-500 focus:outline-none"
+                    />
+                    <span class="mt-1 block text-xs text-gray-400">
+                        Required. Max 100 characters.
+                    </span>
+                </label>
+
+                <label class="block">
+                    <span class="mb-1 block text-sm font-medium">Description</span>
+                    <textarea
+                        id="store-description"
+                        name="description"
+                        rows="3"
+                        maxlength="500"
+                        placeholder="Hand-poured goods paid in Dash."
+                        class="w-full rounded border border-gray-600 bg-gray-900 px-3 py-2 text-gray-100 placeholder-gray-500 focus:border-blue-500 focus:outline-none"></textarea>
+                    <span class="mt-1 block text-xs text-gray-400">
+                        Optional. Max 500 characters.
+                    </span>
+                </label>
+
+                <label class="block">
+                    <span class="mb-1 block text-sm font-medium">
+                        Status <span class="text-red-400">*</span>
+                    </span>
+                    <select
+                        id="store-status"
+                        name="status"
+                        required
+                        class="w-full rounded border border-gray-600 bg-gray-900 px-3 py-2 text-gray-100 focus:border-blue-500 focus:outline-none"
+                    >
+                        {STORE_STATUSES.map((status) => (
+                            <option value={status} selected={status === 'active'}>
+                                {status}
+                            </option>
+                        ))}
+                    </select>
+                    <span class="mt-1 block text-xs text-gray-400">
+                        Required. Only <code>active</code> stores are listed by
+                        the storefront resolver.
+                    </span>
+                </label>
+            </fieldset>
+
+            <!-- MEDIA -->
+            <fieldset class="space-y-4 rounded-lg border border-gray-700 p-4">
+                <legend class="px-1 text-sm font-semibold uppercase tracking-wide text-gray-400">
+                    Media
+                </legend>
+
+                <label class="block">
+                    <span class="mb-1 block text-sm font-medium">Logo URL</span>
+                    <input
+                        id="store-logo"
+                        name="logoUrl"
+                        type="url"
+                        placeholder="https://example.com/logo.png"
+                        class="w-full rounded border border-gray-600 bg-gray-900 px-3 py-2 text-gray-100 placeholder-gray-500 focus:border-blue-500 focus:outline-none"
+                    />
+                    <span class="mt-1 block text-xs text-gray-400">
+                        Optional. Must start with <code>http://</code> or
+                        <code>https://</code>, matching the contract pattern.
+                    </span>
+                </label>
+
+                <label class="block">
+                    <span class="mb-1 block text-sm font-medium">Banner URL</span>
+                    <input
+                        id="store-banner"
+                        name="bannerUrl"
+                        type="url"
+                        placeholder="https://example.com/banner.png"
+                        class="w-full rounded border border-gray-600 bg-gray-900 px-3 py-2 text-gray-100 placeholder-gray-500 focus:border-blue-500 focus:outline-none"
+                    />
+                    <span class="mt-1 block text-xs text-gray-400">
+                        Optional. Same URL rule as the logo.
+                    </span>
+                </label>
+            </fieldset>
+
+            <!-- COMMERCE -->
+            <fieldset class="space-y-4 rounded-lg border border-gray-700 p-4">
+                <legend class="px-1 text-sm font-semibold uppercase tracking-wide text-gray-400">
+                    Commerce
+                </legend>
+
+                <label class="block">
+                    <span class="mb-1 block text-sm font-medium">Default currency</span>
+                    <input
+                        id="store-currency"
+                        name="defaultCurrency"
+                        type="text"
+                        maxlength="10"
+                        placeholder="USD"
+                        class="w-full rounded border border-gray-600 bg-gray-900 px-3 py-2 text-gray-100 placeholder-gray-500 focus:border-blue-500 focus:outline-none"
+                    />
+                    <span class="mt-1 block text-xs text-gray-400">
+                        Optional. A code such as <code>USD</code>,
+                        <code>EUR</code> or <code>DASH</code>. The live
+                        <code>test</code> store uses <code>DASH</code>.
+                    </span>
+                </label>
+
+                <label class="block">
+                    <span class="mb-1 block text-sm font-medium">Payment URIs</span>
+                    <textarea
+                        id="store-payment-uris"
+                        name="paymentUris"
+                        rows="2"
+                        maxlength="2000"
+                        placeholder='["dash:Xxxxx..."]'
+                        class="w-full rounded border border-gray-600 bg-gray-900 px-3 py-2 font-mono text-sm text-gray-100 placeholder-gray-500 focus:border-blue-500 focus:outline-none"></textarea>
+                    <span class="mt-1 block text-xs text-gray-400">
+                        Optional. A JSON array of payment URIs, stored as a
+                        string.
+                    </span>
+                </label>
+
+                <label class="block">
+                    <span class="mb-1 block text-sm font-medium">Location</span>
+                    <input
+                        id="store-location"
+                        name="location"
+                        type="text"
+                        maxlength="100"
+                        placeholder="Atlanta, GA"
+                        class="w-full rounded border border-gray-600 bg-gray-900 px-3 py-2 text-gray-100 placeholder-gray-500 focus:border-blue-500 focus:outline-none"
+                    />
+                    <span class="mt-1 block text-xs text-gray-400">Optional. Max 100 characters.</span>
+                </label>
+            </fieldset>
+
+            <!-- ACTIONS -->
+            <div class="flex flex-wrap items-center gap-3">
+                <button
+                    type="submit"
+                    class="rounded bg-blue-600 px-5 py-2.5 font-semibold text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                >
+                    Review store
+                </button>
+                <button
+                    type="reset"
+                    class="rounded border border-gray-600 px-5 py-2.5 font-semibold text-gray-200 hover:bg-gray-700 focus:outline-none"
+                >
+                    Reset
+                </button>
+            </div>
+
+            <p id="create-store-status" class="min-h-6 text-sm text-gray-300">
+                Fill in the form, then review what would be written.
+            </p>
+        </form>
+
+        <!-- The review/authorization panel is revealed after the form is valid. -->
+        <section id="create-store-review" class="mt-8 hidden rounded-lg border border-gray-700 p-4">
+            <h2 class="mb-3 text-lg font-semibold">Review</h2>
+            <pre
+                id="create-store-payload"
+                class="overflow-x-auto rounded bg-gray-950 p-3 text-xs text-gray-200"
+            ></pre>
+
+            <div class="mt-4 rounded border border-yellow-700 bg-yellow-950/40 p-3 text-sm text-yellow-100">
+                <p class="font-semibold">Signing is not enabled yet.</p>
+                <p class="mt-1">
+                    This is the exact document that will be submitted once
+                    DashConnect authorization is wired in. Nothing has been
+                    written to Dash Platform.
+                </p>
+            </div>
+
+            <div id="create-store-qr" class="mt-6 hidden">
+                <!--
+                    DashConnect QR code target. The wallet scans this, shows the
+                    write it is authorizing, and returns a signature; this page
+                    never sees a private key.
+                -->
+                <p class="mb-2 text-sm text-gray-300">
+                    Scan with DashConnect to authorize:
+                </p>
+                <div
+                    id="create-store-qr-image"
+                    class="flex h-48 w-48 items-center justify-center rounded border border-gray-600 bg-white text-xs text-gray-500"
+                >
+                    QR code appears here
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        /*
+         * Client-side form handling.
+         *
+         * NOTHING HERE WRITES TO PLATFORM. The submit handler validates the
+         * form against the live contract's rules and prints the document it
+         * WOULD create. The single seam for the real write is
+         * `createStoreDocument` in src/lib/create-store.ts.
+         */
+        import {
+            checkDraft,
+            draftFromFormData,
+        } from '../lib/create-store'
+
+        const form = document.getElementById('create-store-form') as HTMLFormElement | null
+        const statusLine = document.getElementById('create-store-status')
+        const review = document.getElementById('create-store-review')
+        const payloadView = document.getElementById('create-store-payload')
+        const qrBlock = document.getElementById('create-store-qr')
+
+        function setStatus(message: string, tone: 'info' | 'error' | 'ok' = 'info'): void {
+            if (!statusLine) return
+
+            statusLine.textContent = message
+            statusLine.className = tone === 'error'
+                ? 'min-h-6 text-sm text-red-400'
+                : tone === 'ok'
+                    ? 'min-h-6 text-sm text-green-400'
+                    : 'min-h-6 text-sm text-gray-300'
+        }
+
+        function hideReview(): void {
+            review?.classList.add('hidden')
+            qrBlock?.classList.add('hidden')
+        }
+
+        form?.addEventListener('input', () => {
+            /* Any edit invalidates a previous review. */
+            hideReview()
+            setStatus('Fill in the form, then review what would be written.')
+        })
+
+        form?.addEventListener('reset', () => {
+            hideReview()
+            setStatus('Form cleared.')
+        })
+
+        form?.addEventListener('submit', (event) => {
+            event.preventDefault()
+
+            if (!form.reportValidity()) return
+
+            const draft = draftFromFormData(new FormData(form))
+            const { errors, payload } = checkDraft(draft)
+            const firstError = Object.values(errors)[0]
+
+            if (firstError) {
+                hideReview()
+                setStatus(firstError, 'error')
+                return
+            }
+
+            if (payloadView) payloadView.textContent = JSON.stringify(payload, null, 2)
+
+            if (qrBlock) qrBlock.classList.remove('hidden')
+            review?.classList.remove('hidden')
+
+            setStatus(
+                'Valid against the live contract. No write has been made — authorization is pending DashConnect.',
+                'ok',
+            )
+        })
+    </script>
+</Layout>
