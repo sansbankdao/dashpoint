@@ -122,7 +122,12 @@ const confirmThresholdValue = String(DEFAULT_CONFIG.confirmThresholdUsd)
                             placeholder="X…"
                             value={defaults.destinationAddress}
                             class="rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-4 py-3 font-mono text-sm outline-none focus:ring-2 focus:ring-blue-500" />
-                        <p id="destinationAddress-status" class="text-xs text-slate-500 dark:text-slate-400">Validated as a Dash mainnet P2PKH address.</p>
+                        <p id="destinationAddress-status" class="text-xs text-slate-500 dark:text-slate-400">Checked against the Dash address formats below.</p>
+                        <p class="text-xs text-slate-500 dark:text-slate-400">
+                            Accepts a Dash Core (L1) P2PKH mainnet address. Platform (L2) addresses,
+                            including shielded ones, are identified for you but cannot be saved here
+                            yet.
+                        </p>
                         <p class="text-xs text-slate-500 dark:text-slate-400">
                             Used for sales taken on this browser. This is the only place the payout address is
                             held: the API stores no address of its own, so a terminal with no value saved here
@@ -185,6 +190,7 @@ const confirmThresholdValue = String(DEFAULT_CONFIG.confirmThresholdUsd)
 
     <script>
         import { DEFAULT_CONFIG, loadConfig, saveConfig, clearConfig, isValidDashAddress, type PosConfig } from '../lib/config'
+        import { classifyDashAddress } from '../lib/address'
 
         const API_BASE = '/v1'
 
@@ -309,15 +315,47 @@ const confirmThresholdValue = String(DEFAULT_CONFIG.confirmThresholdUsd)
             const value = inputFor('destinationAddress').value.trim()
 
             if (!value) {
-                setAddressStatus('Validated as a Dash mainnet P2PKH address.', 'muted')
+                setAddressStatus('Checked against the Dash address formats below.', 'muted')
                 return true
             }
 
-            const ok = await isValidDashAddress(value)
-            setAddressStatus(ok
-                ? 'Valid Dash mainnet address.'
-                : 'Not a valid Dash mainnet P2PKH address.', ok ? 'ok' : 'error')
-            return ok
+            /*
+             * Two questions, two answers.
+             *
+             * `classifyDashAddress` NAMES the address so the merchant is told
+             * what they pasted — L1 Core, L2 Platform transparent, or L2
+             * shielded. `isValidDashAddress` remains the gate: it is the one
+             * the payment path has always used, and it accepts ONLY a mainnet
+             * P2PKH address. Both run, so the message can be specific without
+             * widening what may be saved.
+             */
+            const classification = await classifyDashAddress(value)
+            const accepted = await isValidDashAddress(value)
+
+            if (classification.kind === 'unknown') {
+                setAddressStatus('Not a Dash address.', 'error')
+                return false
+            }
+
+            if (accepted) {
+                setAddressStatus(`${classification.label} — valid.`, 'ok')
+                return true
+            }
+
+            /*
+             * A real Dash address this screen still cannot use. Say which kind
+             * it is and why it is refused, rather than calling a valid address
+             * invalid.
+             */
+            const networkNote = classification.network === 'mainnet'
+                ? ''
+                : ' It is also not on mainnet.'
+
+            setAddressStatus(
+                `${classification.label}, but this field accepts only a Dash Core (L1) P2PKH mainnet address.${networkNote}`,
+                'error'
+            )
+            return false
         }
 
         // Report whether the deployed API has a partner key bound, without
@@ -357,7 +395,7 @@ const confirmThresholdValue = String(DEFAULT_CONFIG.confirmThresholdUsd)
         resetBtn.addEventListener('click', () => {
             clearConfig()
             fillForm({ ...DEFAULT_CONFIG })
-            setAddressStatus('Validated as a Dash mainnet P2PKH address.', 'muted')
+            setAddressStatus('Checked against the Dash address formats below.', 'muted')
             setStatus('Settings reset to defaults.', 'ok')
         })
 
@@ -367,17 +405,13 @@ const confirmThresholdValue = String(DEFAULT_CONFIG.confirmThresholdUsd)
             let timer: number | undefined
             input.addEventListener('input', () => {
                 if (timer) window.clearTimeout(timer)
-                timer = window.setTimeout(async () => {
-                    const value = input.value.trim()
-                    if (!value) {
-                        setAddressStatus('Validated as a Dash mainnet P2PKH address.', 'muted')
-                        return
-                    }
-                    const ok = await isValidDashAddress(value)
-                    setAddressStatus(ok
-                        ? 'Valid Dash mainnet address.'
-                        : 'Not a valid Dash mainnet P2PKH address.', ok ? 'ok' : 'error')
-                }, 250)
+                /*
+                 * Delegates to `validateAddress` rather than repeating its
+                 * logic. The two used to hold separate copies of the wording,
+                 * which is how a single address could be described two
+                 * different ways depending on whether it was typed or saved.
+                 */
+                timer = window.setTimeout(() => { void validateAddress() }, 250)
             })
         }
 
