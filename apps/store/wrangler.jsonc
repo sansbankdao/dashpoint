@@ -44,9 +44,24 @@
 // way to reach the resolver from a Worker that is itself on the wildcard.
 // `src/pages/index.astro` prefers this binding and falls back to HTTP fetch
 // when it is absent (astro dev, unit tests).
+//
+// WHY THE ROUTE IS DECLARED HERE
+// `wrangler deploy` attaches a route only when the config names one. The
+// wildcard `*.paymedash.xyz/*` is what puts every merchant subdomain
+// (`<username>.paymedash.xyz`), the demo host and the two proxied hosts on this
+// Worker; without it the deploy succeeds and the Worker receives no traffic at
+// all, because the zone has nothing pointing at it. The apex and `www` are NOT
+// in this pattern -- they are the landing page, served by the `paymedash-web`
+// Pages project -- so only the subdomain family is claimed here.
 {
     "name": "paymedash-store",
     "compatibility_date": "2025-01-29",
+    "routes": [
+        {
+            "pattern": "*.paymedash.xyz/*",
+            "zone_name": "paymedash.xyz"
+        }
+    ],
     "kv_namespaces": [
         {
             "binding": "SESSION",
