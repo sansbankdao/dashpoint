@@ -27,8 +27,8 @@ jobs:
       # Installed once from the root so the whole workspace resolves against the
       # single root lockfile, then each app is checked, tested and built.
       - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter @dashpoint/${{ matrix.app }} check
+      - run: pnpm --filter @paymedash/${{ matrix.app }} check
         # `--if-present` because apps/web is a static landing page with no
         # tests; every other app must define the script.
-      - run: pnpm --filter @dashpoint/${{ matrix.app }} run --if-present test
-      - run: pnpm --filter @dashpoint/${{ matrix.app }} build
+      - run: pnpm --filter @paymedash/${{ matrix.app }} run --if-present test
+      - run: pnpm --filter @paymedash/${{ matrix.app }} build

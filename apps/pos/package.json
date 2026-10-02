@@ -1,5 +1,5 @@
 {
-  "name": "@dashpoint/pos",
+  "name": "@paymedash/pos",
   "author": "Sansbank contributors <hello@sansbank.org>",
   "license": "MIT",
   "type": "module",

@@ -1,5 +1,5 @@
 {
-  "name": "dashpoint",
+  "name": "paymedash",
   "version": "0.1.0",
   "private": true,
   "description": "PayMeDash — landing page, demo storefront, hosted storefront and point-of-sale.",
@@ -11,13 +11,13 @@
     "pnpm": ">=9.0.0"
   },
   "scripts": {
-    "dev:web": "pnpm --filter @dashpoint/web dev",
-    "dev:store": "pnpm --filter @dashpoint/store dev",
-    "dev:pos": "pnpm --filter @dashpoint/pos dev",
+    "dev:web": "pnpm --filter @paymedash/web dev",
+    "dev:store": "pnpm --filter @paymedash/store dev",
+    "dev:pos": "pnpm --filter @paymedash/pos dev",
 
-    "build:web": "pnpm --filter @dashpoint/web build",
-    "build:store": "pnpm --filter @dashpoint/store build",
-    "build:pos": "pnpm --filter @dashpoint/pos build",
+    "build:web": "pnpm --filter @paymedash/web build",
+    "build:store": "pnpm --filter @paymedash/store build",
+    "build:pos": "pnpm --filter @paymedash/pos build",
     "build": "pnpm -r build",
 
     "check": "pnpm -r check",

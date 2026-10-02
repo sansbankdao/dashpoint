@@ -23,7 +23,7 @@ covers the POS itself.
 
 ```text
 astro.config.mjs          Astro config; registers the Tailwind Vite plugin
-package.json              name "@dashpoint/pos", version 25.10.3, MIT
+package.json              name "@paymedash/pos", version 25.10.3, MIT
 tsconfig.json             extends astro/tsconfigs/strict
 public/favicon.svg        site icon
 public/manifest.webmanifest  PWA manifest (start_url "/", display standalone)
@@ -116,11 +116,11 @@ From the **monorepo root**:
 
 ```sh
 pnpm install                            # install the whole workspace
-pnpm --filter @dashpoint/pos dev        # astro dev, http://localhost:4321
-pnpm --filter @dashpoint/pos build      # astro build -> apps/pos/dist/
-pnpm --filter @dashpoint/pos preview    # preview the production build
-pnpm --filter @dashpoint/pos check      # astro check (types)
-pnpm --filter @dashpoint/pos test       # node --test src/lib/*.test.ts
+pnpm --filter @paymedash/pos dev        # astro dev, http://localhost:4321
+pnpm --filter @paymedash/pos build      # astro build -> apps/pos/dist/
+pnpm --filter @paymedash/pos preview    # preview the production build
+pnpm --filter @paymedash/pos check      # astro check (types)
+pnpm --filter @paymedash/pos test       # node --test src/lib/*.test.ts
 ```
 
 ## Conventions

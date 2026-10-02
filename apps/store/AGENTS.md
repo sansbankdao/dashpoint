@@ -30,7 +30,7 @@ app itself.
 
 ```text
 astro.config.mjs          Astro config; `site`, Cloudflare adapter, Tailwind plugin
-package.json              name "@dashpoint/store", version 25.10.4, MIT
+package.json              name "@paymedash/store", version 25.10.4, MIT
 tsconfig.json             extends astro/tsconfigs/strict
 .prettierrc               Prettier: no semicolons, single quotes, astro + tailwind plugins
 public/favicon.svg        site icon
@@ -115,12 +115,12 @@ From the **monorepo root**:
 
 ```sh
 pnpm install                  # install the whole workspace
-pnpm --filter @dashpoint/store build     # -> apps/store/dist/
-pnpm --filter @dashpoint/store check     # astro check
-pnpm --filter @dashpoint/store test      # node --test src/lib/*.test.ts
-pnpm --filter @dashpoint/store dev       # astro dev
-pnpm --filter @dashpoint/store preview   # preview the production build
-pnpm --filter @dashpoint/store audit     # dependency vulnerability scan
+pnpm --filter @paymedash/store build     # -> apps/store/dist/
+pnpm --filter @paymedash/store check     # astro check
+pnpm --filter @paymedash/store test      # node --test src/lib/*.test.ts
+pnpm --filter @paymedash/store dev       # astro dev
+pnpm --filter @paymedash/store preview   # preview the production build
+pnpm --filter @paymedash/store audit     # dependency vulnerability scan
 ```
 
 ## Conventions

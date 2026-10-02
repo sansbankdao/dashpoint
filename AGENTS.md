@@ -80,7 +80,7 @@ pnpm -r build
 pnpm dev:web | dev:store | dev:pos
 ```
 
-Target one app with `pnpm --filter @dashpoint/<app> <script>`.
+Target one app with `pnpm --filter @paymedash/<app> <script>`.
 
 ## Rules for changes
 

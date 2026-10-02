@@ -80,12 +80,14 @@ The user-visible product name is **PayMeDash** (commit `7d32608`). It is not
 `DashPoint` anywhere in the source, and a repo-wide grep for `DashPoint`
 returns zero.
 
+The npm identifiers were renamed to `@paymedash/*` with the root workspace
+package named `paymedash`. This needs no lockfile change: the lockfile keys
+workspace members by PATH, and nothing depends on another package by name, so
+`pnpm install --frozen-lockfile` still passes.
+
 Identifiers that CONTAIN the old spelling are deliberately unchanged, because
 they are infrastructure or persisted state rather than branding:
 
-- `@dashpoint/*` package names and the `dashpoint` root package name. The
-  lockfile keys workspace members by PATH, and nothing depends on another
-  package by name, so these resolve nothing at runtime.
 - `dashpoint.config.v1` and `dashpoint.checkout.v1` (localStorage keys).
   Renaming either would orphan saved settings and in-flight checkouts on
   terminals already in the field.
@@ -93,3 +95,5 @@ they are infrastructure or persisted state rather than branding:
   and evict its own old entries.
 - The `dashpoint-*` Worker, Pages and host names, which are still serving as
   the mirror.
+- The `sansbankdao/dashpoint-api` repository name, which is a separate repo and
+  the mirror Worker that serves it.
