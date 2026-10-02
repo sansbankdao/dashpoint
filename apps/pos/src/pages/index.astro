@@ -27,9 +27,9 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>DashPoint POS</title>
+    <title>PayMeDash POS</title>
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-title" content="DashPoint" />
+    <meta name="apple-mobile-web-app-title" content="PayMeDash" />
     <meta name="theme-color" content="#2563eb" />
     <!-- Makes the terminal installable as a standalone app. start_url is /. -->
     <link rel="manifest" href="/manifest.webmanifest" />
@@ -56,7 +56,7 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
                         <line x1="3" y1="18" x2="21" y2="18"></line>
                     </svg>
                 </button>
-                <h1 id="store-name" class="text-xl sm:text-2xl font-bold flex-1 text-center md:text-left md:ml-1 truncate">DashPoint POS</h1>
+                <h1 id="store-name" class="text-xl sm:text-2xl font-bold flex-1 text-center md:text-left md:ml-1 truncate">PayMeDash POS</h1>
                 <!-- Balances the menu button so the title stays optically centred on mobile. -->
                 <div class="shrink-0 w-11 h-11 md:hidden" aria-hidden="true"></div>
             </div>
@@ -81,7 +81,7 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
             <a href="/admin" class="flex items-center gap-3 rounded-xl px-3 py-3 font-medium hover:bg-slate-100 dark:hover:bg-slate-700/60">Terminal Admin</a>
             <a href="/privacy" class="flex items-center gap-3 rounded-xl px-3 py-3 font-medium hover:bg-slate-100 dark:hover:bg-slate-700/60">Privacy</a>
             <a href="/terms" class="flex items-center gap-3 rounded-xl px-3 py-3 font-medium hover:bg-slate-100 dark:hover:bg-slate-700/60">Terms</a>
-            <div id="menu-store-name" class="mt-auto text-xs text-slate-400 dark:text-slate-500 px-3 py-2">DashPoint POS</div>
+            <div id="menu-store-name" class="mt-auto text-xs text-slate-400 dark:text-slate-500 px-3 py-2">PayMeDash POS</div>
         </nav>
 
         <!--
@@ -354,7 +354,7 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
          * The name is a display preference saved by /admin for this device, and
          * it falls back to the shipped default when none was set, so the header
          * never becomes empty. The document title is renamed too: an installed
-         * PWA takes its app label from here, and "DashPoint POS" would otherwise
+         * PWA takes its app label from here, and "PayMeDash POS" would otherwise
          * show on the home screen instead of the merchant's own shop.
          */
         function applyStoreName() {
@@ -365,7 +365,7 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
             } catch {
                 /* Unreadable storage leaves the shipped default in place. */
             }
-            if (!name) name = 'DashPoint POS'
+            if (!name) name = 'PayMeDash POS'
             if (storeNameEl) storeNameEl.textContent = name
             if (menuStoreNameEl) menuStoreNameEl.textContent = name
             document.title = name

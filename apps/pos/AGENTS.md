@@ -1,5 +1,5 @@
 <!-- AGENTS.md -->
-# AGENTS.md — apps/pos (DashPoint POS)
+# AGENTS.md — apps/pos (PayMeDash POS)
 
 Guidance for AI coding agents working on the point-of-sale app of the
 `dashpoint` monorepo. Monorepo-wide rules are in the root `AGENTS.md`; this file

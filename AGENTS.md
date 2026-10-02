@@ -5,7 +5,7 @@ Guidance for AI coding agents working in this repository.
 
 ## Repository facts
 
-- **Purpose:** the DashPoint front ends. One landing page, one storefront
+- **Purpose:** the PayMeDash front ends. One landing page, one storefront
   Worker that serves both the demo and every merchant's hosted shop, and one
   point of sale.
 - **Layout:** pnpm workspace, `apps/*`, on branch `master`.

@@ -1,7 +1,7 @@
 <!-- README.md -->
 # dashpoint
 
-DashPoint — one repository for the storefronts and the point of sale.
+PayMeDash — one repository for the storefronts and the point of sale.
 
 | App | Directory | Deploys to | What it is |
 | --- | --- | --- | --- |

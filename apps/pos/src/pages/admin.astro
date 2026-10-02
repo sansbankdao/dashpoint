@@ -25,7 +25,7 @@ const confirmThresholdValue = String(DEFAULT_CONFIG.confirmThresholdUsd)
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Terminal Admin — DashPoint POS</title>
+    <title>Terminal Admin — PayMeDash POS</title>
     <meta name="robots" content="noindex, nofollow" />
     <meta name="theme-color" content="#2563eb" />
     <!-- The terminal is installable; start_url is /, not this page. -->
@@ -80,14 +80,14 @@ const confirmThresholdValue = String(DEFAULT_CONFIG.confirmThresholdUsd)
                 <section class="bg-white/90 dark:bg-slate-800/90 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-6 flex flex-col gap-3">
                     <h2 class="text-lg font-semibold">Install</h2>
                     <p class="text-xs text-slate-500 dark:text-slate-400">
-                        Installing adds DashPoint to this device's home screen, where it opens full-screen and
+                        Installing adds PayMeDash to this device's home screen, where it opens full-screen and
                         straight to the payment terminal.
                     </p>
 
                     <!-- Shown when the browser can prompt directly. -->
                     <button id="install-btn" type="button"
                         class="hidden self-start bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-bold py-3 px-6 rounded-xl shadow-lg transition-all duration-200">
-                        Install DashPoint to Home Screen
+                        Install PayMeDash to Home Screen
                     </button>
 
                     <!--
@@ -108,7 +108,7 @@ const confirmThresholdValue = String(DEFAULT_CONFIG.confirmThresholdUsd)
 
                     <!-- Shown once the app is already running installed. -->
                     <p id="install-done" class="hidden text-xs font-medium text-emerald-600 dark:text-emerald-400">
-                        DashPoint is installed on this device.
+                        PayMeDash is installed on this device.
                     </p>
                 </section>
 
@@ -417,7 +417,7 @@ const confirmThresholdValue = String(DEFAULT_CONFIG.confirmThresholdUsd)
 
         // --- INSTALL ---
         //
-        // "Install DashPoint to Home Screen".
+        // "Install PayMeDash to Home Screen".
         //
         // Only Chromium browsers fire beforeinstallprompt, and only when the
         // manifest, service worker, and secure-origin requirements are met, so
@@ -483,7 +483,7 @@ const confirmThresholdValue = String(DEFAULT_CONFIG.confirmThresholdUsd)
         window.addEventListener('appinstalled', () => {
             deferredInstallPrompt = null
             refreshInstallUi()
-            setStatus('DashPoint was installed to the home screen.', 'ok')
+            setStatus('PayMeDash was installed to the home screen.', 'ok')
         })
 
         installBtn.addEventListener('click', async () => {

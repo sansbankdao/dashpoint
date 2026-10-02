@@ -1,6 +1,6 @@
 // public/sw.js
 //
-// Minimal service worker for DashPoint POS.
+// Minimal service worker for PayMeDash POS.
 //
 // Its job is deliberately small:
 //

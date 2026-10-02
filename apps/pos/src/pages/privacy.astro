@@ -9,8 +9,8 @@ import '../styles/global.css'
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Privacy — DashPoint</title>
-    <meta name="description" content="What DashPoint stores, what it sends, and what it never collects." />
+    <title>Privacy — PayMeDash</title>
+    <meta name="description" content="What PayMeDash stores, what it sends, and what it never collects." />
     <meta name="robots" content="index, follow" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
 </head>
@@ -18,10 +18,10 @@ import '../styles/global.css'
     <main class="mx-auto max-w-3xl px-6 py-12 flex flex-col gap-8">
 
         <header class="flex flex-col gap-2">
-            <a href="/" class="text-sm text-blue-600 dark:text-blue-400">&larr; DashPoint</a>
+            <a href="/" class="text-sm text-blue-600 dark:text-blue-400">&larr; PayMeDash</a>
             <h1 class="text-3xl font-bold">Privacy</h1>
             <p class="text-sm text-slate-500 dark:text-slate-400">
-                This page describes what the DashPoint point-of-sale application stores and what it
+                This page describes what the PayMeDash point-of-sale application stores and what it
                 sends when a payment is taken. It describes this software, not any other site or
                 service you may reach from it.
             </p>
@@ -30,7 +30,7 @@ import '../styles/global.css'
         <section class="flex flex-col gap-3">
             <h2 class="text-xl font-semibold">No accounts, no analytics</h2>
             <p class="text-sm text-slate-600 dark:text-slate-300">
-                DashPoint has no sign-up, no login, and no user accounts. It sets no advertising or
+                PayMeDash has no sign-up, no login, and no user accounts. It sets no advertising or
                 analytics cookies and loads no third-party analytics, tracking, or advertising code.
                 It does not build a profile of you and does not sell or share data with anyone for
                 marketing purposes.
@@ -44,7 +44,7 @@ import '../styles/global.css'
                 device itself, under the key <code class="font-mono text-xs">dashpoint.config.v1</code>.
                 These settings are the store name, the display currency, the tip percentages, and the
                 DASH payout address the merchant has configured. They stay on the device. They are not
-                uploaded to DashPoint, and no server keeps a copy of them.
+                uploaded to PayMeDash, and no server keeps a copy of them.
             </p>
             <p class="text-sm text-slate-600 dark:text-slate-300">
                 Because the settings live in the browser, clearing site data removes them.
@@ -55,12 +55,12 @@ import '../styles/global.css'
             <h2 class="text-xl font-semibold">What is sent when a payment is taken</h2>
             <p class="text-sm text-slate-600 dark:text-slate-300">
                 To price a sale and produce payment instructions, the app sends the chosen payment
-                asset and the amount to the DashPoint API. The DASH payout address configured by the
+                asset and the amount to the PayMeDash API. The DASH payout address configured by the
                 merchant is sent with that request so the funds can be delivered to the merchant. The
                 API does not store this address; it holds no payout address of its own.
             </p>
             <p class="text-sm text-slate-600 dark:text-slate-300">
-                The DashPoint API forwards the swap request to <strong>1Click</strong>, the swap
+                The PayMeDash API forwards the swap request to <strong>1Click</strong>, the swap
                 service operated at <code class="font-mono text-xs">1click.chaindefuser.com</code>, which
                 arranges the conversion into DASH. That request necessarily includes the asset and
                 amount you are paying, the DASH payout address, and a refund target. 1Click's own
@@ -88,8 +88,8 @@ import '../styles/global.css'
             <p class="text-sm text-slate-600 dark:text-slate-300">
                 Payments are made on public blockchains. A blockchain records transactions permanently
                 and openly, so the addresses and amounts involved in a payment are visible to anyone
-                who looks, independently of DashPoint. This is a property of the networks, not a
-                choice DashPoint makes, and it cannot be undone by deleting anything here.
+                who looks, independently of PayMeDash. This is a property of the networks, not a
+                choice PayMeDash makes, and it cannot be undone by deleting anything here.
             </p>
         </section>
 
@@ -103,7 +103,7 @@ import '../styles/global.css'
         </section>
 
         <footer class="pt-4 border-t border-slate-200 dark:border-slate-700 text-sm text-slate-500 dark:text-slate-400">
-            <p>DashPoint is open-source software. See the <a href="/terms" class="text-blue-600 dark:text-blue-400">Terms of Use</a>.</p>
+            <p>PayMeDash is open-source software. See the <a href="/terms" class="text-blue-600 dark:text-blue-400">Terms of Use</a>.</p>
         </footer>
 
     </main>

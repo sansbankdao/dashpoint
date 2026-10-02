@@ -1,6 +1,6 @@
 {
-  "name": "DashPoint POS",
-  "short_name": "DashPoint",
+  "name": "PayMeDash POS",
+  "short_name": "PayMeDash",
   "description": "Point-of-sale terminal that accepts any crypto and settles in Dash.",
   "start_url": "/",
   "scope": "/",

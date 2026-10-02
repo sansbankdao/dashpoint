@@ -2,7 +2,7 @@
   "name": "dashpoint",
   "version": "0.1.0",
   "private": true,
-  "description": "DashPoint — landing page, demo storefront, hosted storefront and point-of-sale.",
+  "description": "PayMeDash — landing page, demo storefront, hosted storefront and point-of-sale.",
   "author": "Sansbank contributors <hello@sansbank.org>",
   "license": "MIT",
   "packageManager": "pnpm@10.15.0",

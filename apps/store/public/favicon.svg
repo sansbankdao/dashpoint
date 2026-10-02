@@ -1,7 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="DashPoint">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="PayMeDash">
     <!--
-    DashPoint mark: a point-of-sale terminal (card reader) showing a payment
-    being tapped, over the DashPoint blue. Self-contained (no external fonts or
+    PayMeDash mark: a point-of-sale terminal (card reader) showing a payment
+    being tapped, over the PayMeDash blue. Self-contained (no external fonts or
     images), so it renders identically as a favicon and inline as the hero logo.
     -->
     <defs>

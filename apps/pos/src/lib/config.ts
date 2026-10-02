@@ -52,7 +52,7 @@ export interface PosConfig {
 }
 
 export const DEFAULT_CONFIG: PosConfig = {
-    storeName: 'DashPoint POS',
+    storeName: 'PayMeDash POS',
     destinationAddress: '',
     refundAddress: '',
     apiKey: '',

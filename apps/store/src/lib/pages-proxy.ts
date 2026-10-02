@@ -42,8 +42,8 @@ import { STORE_DOMAIN } from './store-host'
  * Hosts this Worker proxies, mapped to the Pages origin that serves them.
  *
  * Both origins were verified 200 before being recorded here:
- *   paymedash-web.pages.dev -> "DashPoint"
- *   paymedash-pos.pages.dev -> "DashPoint POS"
+ *   paymedash-web.pages.dev -> "PayMeDash"
+ *   paymedash-pos.pages.dev -> "PayMeDash POS"
  */
 export const PAGES_PROXY_ORIGINS: Record<string, string> = {
     [`www.${STORE_DOMAIN}`]: 'https://paymedash-web.pages.dev',

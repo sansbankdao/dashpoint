@@ -61,9 +61,9 @@ apex.
 
 - `demo.paymedash.xyz` -> 200, "Homemade Crypto -- Demo", fixture renders,
   zero `dashpoint.store` references in the body.
-- `pos.paymedash.xyz` -> 200, "DashPoint POS"; `/_astro/` and
+- `pos.paymedash.xyz` -> 200, "PayMeDash POS"; `/_astro/` and
   `/manifest.webmanifest` return 200 through the proxy.
-- `www.paymedash.xyz` and `paymedash.xyz` -> 200, "DashPoint".
+- `www.paymedash.xyz` and `paymedash.xyz` -> 200, "PayMeDash".
 - `paymedash.xyz/v1/shield/quote?amount=0.05` -> 200 with a real quote.
 - `paymedash.xyz/v1/store?name=homemadecrypto` -> 404
   `No identity has registered this name.` The resolver was REACHED via the
