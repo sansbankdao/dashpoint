@@ -55,17 +55,41 @@ apex.
 | Worker | Version ID |
 | --- | --- |
 | `paymedash-api` | `b137e9b8-4ddf-4512-ab67-75b537441fdf` |
-| `paymedash-store` | `8d780d6e-0ac5-4886-8107-20b08e71711e` |
+| `paymedash-store` | `380c8082-e31c-4e38-9c29-9a45ecffd06e` |
+
+`paymedash-store` was redeployed for the rebrand because the store favicon's
+`aria-label` changed. The initial deploy was `8d780d6e-0ac5-4886-8107-20b08e71711e`.
 
 ## Verified live
 
 - `demo.paymedash.xyz` -> 200, "Homemade Crypto -- Demo", fixture renders,
   zero `dashpoint.store` references in the body.
 - `pos.paymedash.xyz` -> 200, "PayMeDash POS"; `/_astro/` and
-  `/manifest.webmanifest` return 200 through the proxy.
+  `/manifest.webmanifest` return 200 through the proxy. `/admin/`, `/terms/`
+  and `/privacy/` -> 200, all titled "PayMeDash".
 - `www.paymedash.xyz` and `paymedash.xyz` -> 200, "PayMeDash".
 - `paymedash.xyz/v1/shield/quote?amount=0.05` -> 200 with a real quote.
 - `paymedash.xyz/v1/store?name=homemadecrypto` -> 404
   `No identity has registered this name.` The resolver was REACHED via the
   service binding, which is what the binding exists to prove: the failure is a
   real upstream answer, not the HTML-loop the binding prevents.
+
+## Product name
+
+The user-visible product name is **PayMeDash** (commit `7d32608`). It is not
+`DashPoint` anywhere in the source, and a repo-wide grep for `DashPoint`
+returns zero.
+
+Identifiers that CONTAIN the old spelling are deliberately unchanged, because
+they are infrastructure or persisted state rather than branding:
+
+- `@dashpoint/*` package names and the `dashpoint` root package name. The
+  lockfile keys workspace members by PATH, and nothing depends on another
+  package by name, so these resolve nothing at runtime.
+- `dashpoint.config.v1` and `dashpoint.checkout.v1` (localStorage keys).
+  Renaming either would orphan saved settings and in-flight checkouts on
+  terminals already in the field.
+- `dashpoint-static-v1` (service worker cache name), which the SW uses to find
+  and evict its own old entries.
+- The `dashpoint-*` Worker, Pages and host names, which are still serving as
+  the mirror.
