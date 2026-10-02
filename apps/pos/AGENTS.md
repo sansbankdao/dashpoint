@@ -185,7 +185,8 @@ on this zone and on `paymedash.xyz`, in front of the static Pages site.
 | `GET /v1/status` | Track a swap by deposit address (and memo) |
 | `GET /v1/docs`, `/v1/redoc`, `/v1/openapi.json` | Generated API browser and spec |
 
-- Source: `github.com/sansbankdao/paymedash-api` (private).
+- Source: a separate, private repository. It is not part of this monorepo and
+  cannot be deployed from here.
 - The partner JWT lives in a Cloudflare Secrets Store binding on the Worker.
   It is never sent to the browser and never committed to this repository. Do
   not add it to any tracked file; the POS has no need for it.

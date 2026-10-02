@@ -28,9 +28,8 @@ Worker) and `dashpoint-api` (Worker) are all still deployed and unchanged.
 
 `pos.dashpoint.store` and `demo.dashpoint.store` currently resolve to parking
 IPs (`2.59.170.20`, `104.219.250.37`) because the `dashpoint.store` domain is
-past expiry at the registrar. That is the pre-existing outage documented in
-`docs/dashpoint-store-domain-offline.md`; it is a DNS/registrar condition and
-not a consequence of this move. `dashpoint.sale` resolves normally.
+past expiry at the registrar. That is a DNS/registrar condition and not a
+consequence of this move. `dashpoint.sale` resolves normally.
 
 ## Why `paymedash-api` is a second config
 

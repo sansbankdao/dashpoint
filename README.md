@@ -23,10 +23,10 @@ per-request logic; it never needs to read a `Host` header.
 
 ## Not in this repository
 
-The API Worker lives in its own repository, `sansbankdao/paymedash-api`
-(private). It is routed in front of these sites at `/v1/*` on the zone and is
-what actually resolves DPNS names, verifies grovedb proofs, and serves store
-listings. This repository cannot deploy it.
+The API Worker is a separate, private service. It is routed in front of these
+sites at `/v1/*` and is what actually resolves DPNS names, verifies grovedb
+proofs, and serves store listings. This repository cannot deploy it, and its
+source is not public.
 
 ## Requirements
 
@@ -88,10 +88,6 @@ app's build can be broken by a change made for the other.
   classification table. Per-app guidance lives in `apps/store/AGENTS.md` and
   `apps/pos/AGENTS.md`.
 - `docs/paymedash-deployment.md` — the host map and what was deployed where.
-- `docs/consolidation-handoff.md` — a historical record of how this repository
-  was assembled from two separate projects.
-- `docs/dashpoint-store-domain-offline.md` — a historical incident record for
-  the retired `dashpoint.store` domain.
 
 ## License
 

@@ -68,8 +68,8 @@ public/_headers           Cloudflare security headers + long-cache rules
 **`https://paymedash.xyz` serves one API server:
 the `paymedash-api` Worker, which is routed at `/v1` in front of
 the site.** The Worker source is the sibling repo
-`../dashpoint-api` (`github.com/sansbankdao/paymedash-api`, private; the local
-directory name is historical).
+a separate, private repository, checked out locally as `../dashpoint-api`
+(the local directory name is historical).
 
 - **The hosted storefront calls two `/v1` endpoints**, both from the SERVER, both
   through `src/lib/store-api.ts`: `GET /v1/store?name=<label>` and
