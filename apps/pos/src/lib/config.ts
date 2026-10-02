@@ -5,7 +5,7 @@
  *
  * Storage is browser localStorage only. This repository has no backend for
  * these values, so they are per-device display preferences. Payment-critical
- * settings live on the dashpoint-api Worker instead:
+ * settings live on the paymedash-api Worker instead:
  *
  *   - The DASH payout address is entered on /admin for THIS device and is sent
  *     with every quote as `destinationAddress`. The Worker holds none.
@@ -61,7 +61,7 @@ export const DEFAULT_CONFIG: PosConfig = {
     confirmThresholdUsd: 0
 }
 
-export const CONFIG_STORAGE_KEY = 'dashpoint.config.v1'
+export const CONFIG_STORAGE_KEY = 'paymedash.config.v1'
 
 // Base58 alphabet shared by Bitcoin and Dash (no 0, O, I, l).
 const BASE58_ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'

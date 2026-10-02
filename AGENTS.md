@@ -1,5 +1,5 @@
 <!-- AGENTS.md -->
-# AGENTS.md — dashpoint (monorepo)
+# AGENTS.md — paymedash (monorepo)
 
 Guidance for AI coding agents working in this repository.
 
@@ -22,15 +22,15 @@ apps/store   Cloudflare Worker. `/` is server-rendered and reads the Host header
 apps/pos     static point of sale.
 ```
 
-`apps/store` serves the root of every `*.dashpoint.store` host:
-`demo.dashpoint.store` renders the local fixture in `src/data/products.ts`
-without any network call, and `<username>.dashpoint.store` resolves a Dash
+`apps/store` serves the root of every `*.paymedash.xyz` host:
+`demo.paymedash.xyz` renders the local fixture in `src/data/products.ts`
+without any network call, and `<username>.paymedash.xyz` resolves a Dash
 Platform store through the API. Reserved labels (`www`, `demo`, `pos`) are never
 treated as usernames — see `apps/store/src/lib/store-host.ts`.
 
 ### How a host is dispatched (measured, not assumed)
 
-The store Worker owns the wildcard route `*.dashpoint.store/*`. Cloudflare does
+The store Worker owns the wildcard route `*.paymedash.xyz/*`. Cloudflare does
 **not** reliably let a more-specific literal route win over a wildcard, so
 `www` and `pos` cannot be handled by their own routes while the wildcard is
 attached. They are instead **proxied** by this Worker:
@@ -44,19 +44,20 @@ Two constraints keep this correct, and both were established by measurement:
 - **The forward must run for every path, not just `/`.** It lives in middleware
   because `src/pages/index.astro` only matches `/`. A Pages site also serves
   `/_astro/...` bundles and `/manifest.webmanifest` as separate requests; when
-  the proxy was attached to the page, `pos.dashpoint.store/_astro/...` and
-  `pos.dashpoint.store/manifest.webmanifest` returned 404 while the same paths
-  on `dashpoint-sale.pages.dev` returned 200.
+  the proxy was attached to the page, `pos.paymedash.xyz/_astro/...` and
+  `pos.paymedash.xyz/manifest.webmanifest` returned 404 while the same paths
+  on `paymedash-pos.pages.dev` returned 200.
 - **Proxy targets must be the `*.pages.dev` production aliases**, never the
-  `dashpoint.store` spellings. A fetch to `pos.dashpoint.store` would match the
+  `paymedash.xyz` spellings. A fetch to `pos.paymedash.xyz` would match the
   same wildcard, re-enter this Worker and loop.
 
-`dashpoint.sale` is unaffected by any of this: it has no Worker route on its
-zone and goes straight to the Pages origin.
+`dashpoint.sale` — a separate domain that still serves the POS — is unaffected
+by any of this: it has no Worker route on its zone and goes straight to the
+Pages origin.
 
 ### Not in this repository
 
-The API Worker is `sansbankdao/dashpoint-api`, a **separate repository**. It is
+The API Worker is `sansbankdao/paymedash-api`, a **separate repository**. It is
 routed at `/v1/*` on both zones and owns DPNS resolution, grovedb proof
 verification and store listings. Nothing here can deploy it, and a change to
 `/v1` behaviour cannot be made from this repo.
@@ -106,7 +107,7 @@ Target one app with `pnpm --filter @paymedash/<app> <script>`.
 
 `www`, `demo` and `pos` are reserved in
 `apps/store/src/lib/store-host.ts` and must stay that way. `pos` in particular
-is reserved because `pos.dashpoint.store` is `apps/pos`; without it the store
+is reserved because `pos.paymedash.xyz` is `apps/pos`; without it the store
 Worker would try to resolve a merchant literally named `pos`. They stay
 reserved *while* being proxied, so `storeNameFromHostname()` returns `null` for
 them and they can never be mistaken for merchants.
@@ -180,9 +181,17 @@ The protocol side exists and is complete. The **browser** side is not.
   shipped. That SDK also predates the newer DAPI shielded RPCs.
 
 **Consequence.** Constructing the proof in the browser is not possible with the
-shipped WASM. The realistic options are (a) a trusted proving service holding
-the proving key, (b) a Rust signer service, or (c) wait for WASM support. Do not
-record a design decision here as though the browser could prove today.
+shipped WASM. The proof is produced by a **separate proving service**, the
+`wasm-prover` Worker, and returned to the browser as a finished
+`OrchardBundleParams`. The browser keeps the asset-lock private key and does the
+assembling and broadcasting; the service never sees a spending key, a note, or
+an asset-lock private key, and never broadcasts. Do not record a design decision
+here as though the browser could prove today.
+
+The proving service is a **separate, private repository**
+(`sansbankdao/wasm-prover`), deployed at `https://prover.sansbank.dev`. It is
+DAO-wide and was deliberately not named after this project. Nothing in this
+repository can deploy it or change its interface.
 
 DAPI **does** expose the shielded read surface, so balances and notes are
 fetchable: `getShieldedEncryptedNotes`, `getShieldedAnchors`,
@@ -192,15 +201,16 @@ fetchable: `getShieldedEncryptedNotes`, `getShieldedAnchors`,
 ## Deploy reality
 
 - `apps/web` and `apps/pos` are static; `apps/store` is a Cloudflare Worker
-  (`wrangler.jsonc`, name `dashpoint-store`).
-- `dashpoint.store` and `dashpoint.sale` are the two Cloudflare zones. Both
-  apexes serve `/v1/*` from the same API Worker.
+  (`wrangler.jsonc`, name `paymedash-store`).
+- `paymedash.xyz` is the Cloudflare zone for this family. The retired
+  `dashpoint.store` and `dashpoint.sale` zones still serve the older mirror
+  deployments.
 - The API is deployed from its own repository, not this one.
 - **Deploy the store Worker from its build output**, not the source directory:
   `wrangler deploy --config dist/server/wrangler.json` after `astro build`.
 - **The store Worker can only reach DAPI by hostname.** A `fetch()` to a bare IP
   is blocked at the edge with Cloudflare error 1003 before it leaves. See
-  `dashpoint-api`'s `DAPI_URL`.
+  `paymedash-api`'s `DAPI_URL`.
 - **Route ordering cannot be relied on.** Workers routes do not reliably
   prioritise a literal over a wildcard, which is why `www`/`pos` are proxied
   rather than routed.

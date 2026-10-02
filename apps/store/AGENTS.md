@@ -1,16 +1,16 @@
 <!-- AGENTS.md -->
 # AGENTS.md — apps/store (Homemade Crypto storefront)
 
-Guidance for AI coding agents working on the storefront app of the `dashpoint`
+Guidance for AI coding agents working on the storefront app of the `paymedash`
 monorepo. Monorepo-wide rules (commands, cents convention, why identifiers are
 never used as hostnames) are in the root `AGENTS.md`; this file covers the
 app itself.
 
 ## App facts
 
-- **Purpose:** the storefront. Serves the root of every `*.dashpoint.store`
-  host that is not the apex: `demo.dashpoint.store` renders the built-in demo
-  fixture, and `<username>.dashpoint.store` renders the merchant's Dash Platform
+- **Purpose:** the storefront. Serves the root of every `*.paymedash.xyz`
+  host: `demo.paymedash.xyz` renders the built-in demo
+  fixture, and `<username>.paymedash.xyz` renders the merchant's Dash Platform
   store.
 - **Stack:** Astro `7.3.5` on the Cloudflare adapter (`@astrojs/cloudflare`) +
   Tailwind CSS `4.3.3` wired through `@tailwindcss/vite`. TypeScript via
@@ -19,11 +19,11 @@ app itself.
 - **Rendering:** the single route `/` is server-rendered
   (`export const prerender = false`). It must be, because it reads the request
   `Host` header to decide what to serve — the demo fixture on
-  `demo.dashpoint.store`, a resolved Dash Platform store on
-  `<username>.dashpoint.store`. Cloudflare routes the `*.dashpoint.store` host
+  `demo.paymedash.xyz`, a resolved Dash Platform store on
+  `<username>.paymedash.xyz`. Cloudflare routes the `*.paymedash.xyz` host
   family to this Worker, so `/` IS the storefront for every one of them. See
   `src/pages/index.astro` for the full explanation.
-- **Site origin:** `https://dashpoint.store` (set as `site` in
+- **Site origin:** `https://paymedash.xyz` (set as `site` in
   `astro.config.mjs`; drives canonical + `og:url` in `src/layouts/Layout.astro`).
 
 ### Source layout
@@ -36,6 +36,7 @@ tsconfig.json             extends astro/tsconfigs/strict
 public/favicon.svg        site icon
 wrangler.jsonc            Cloudflare Worker name + compatibility_date (merged by the adapter)
 src/pages/index.astro     the storefront (SSR); demo fixture OR resolved store, chosen by Host
+src/pages/create-store.astro  the "Create a Store" form (SSR); builds an unsigned request, never signs
 src/middleware.ts         proxies the www/pos hosts to their Pages origins; no-op otherwise
 src/lib/pages-proxy.ts    the Pages origin map and forwarding logic used by the middleware
 src/layouts/Layout.astro  HTML shell, meta/OG/canonical, imports global.css
@@ -45,46 +46,52 @@ src/components/
   StoreNotFound.astro     the "Store Not Found" panel and its reason text
 src/lib/cart.ts           pure cart logic (addItem/removeItem/totalCents/formatCents)
 src/lib/cart.test.ts      node:test unit tests for the pure cart logic
+src/lib/address.ts        Dash address classification (L1 vs L2 transparent vs L2 shielded)
+src/lib/address.test.ts   node:test unit tests for the address classifier
+src/lib/identifier.ts     Dash Platform Identifier validation (32-byte base58)
+src/lib/identifier.test.ts node:test unit tests for the Identifier validator
+src/lib/create-store.ts   client half of "Create a Store": form rules + request shape, no key
+src/lib/create-store.test.ts node:test unit tests for the create-store form logic
 src/lib/store-host.ts     hostname -> DPNS label parsing/validation (STORE_DOMAIN, reserved list, isDemoHost)
 src/lib/store-host.test.ts node:test unit tests for the host parser
-src/lib/store-host.test.ts node:test unit tests for the host parser
-src/lib/store-api.ts      client for the `dashpoint-api` store + items resolver
+src/lib/store-api.ts      client for the `paymedash-api` store + items resolver
 src/lib/store-api.test.ts node:test unit tests for the resolver client (injected fetch)
 src/data/products.ts      the demo fixture products (single source of truth for the demo)
 src/types.ts              shared `Product` interface
+src/env.d.ts              Astro/Cloudflare ambient types
 src/styles/global.css     contains only: @import "tailwindcss";
 public/_headers           Cloudflare security headers + long-cache rules
 ```
 
 ## Shared API server — read this before adding any network call
 
-**`https://dashpoint.sale` and `https://dashpoint.store` share one API server:
-the `dashpoint-api` Worker, which is routed at `/v1` on both zones, in front of
-each site.** The Worker source is the sibling repo
-`../dashpoint-api` (`github.com/sansbankdao/dashpoint-api`, private).
+**`https://paymedash.xyz` serves one API server:
+the `paymedash-api` Worker, which is routed at `/v1` in front of
+the site.** The Worker source is the sibling repo
+`../dashpoint-api` (`github.com/sansbankdao/paymedash-api`, private; the local
+directory name is historical).
 
 - **The hosted storefront calls two `/v1` endpoints**, both from the SERVER, both
   through `src/lib/store-api.ts`: `GET /v1/store?name=<label>` and
   `GET /v1/store/items?storeId=<store document id>`. The origin is the APEX
-  (`https://dashpoint.store/v1/*`, routed to the Worker), even when the page is
-  served from `<username>.dashpoint.store`; the call is server-to-server, so
+  (`https://paymedash.xyz/v1/*`, routed to the Worker), even when the page is
+  served from `<username>.paymedash.xyz`; the call is server-to-server, so
   CORS does not apply. The value is overridable at build time with
   `STORE_API_ORIGIN` for local development only.
   The demo's cart is in-memory and the Pay button still only shows an `alert()`;
   that path makes no network call.
-- **URL map:** `dashpoint.store/` is the landing page (`apps/web`),
-  `demo.dashpoint.store/` is the demo storefront, `pos.dashpoint.store/` is the
-  point of sale (`apps/pos`), and `<USERNAME>.dashpoint.store/` is a merchant's
+- **URL map:** `paymedash.xyz/` is the landing page (`apps/web`),
+  `demo.paymedash.xyz/` is the demo storefront, `pos.paymedash.xyz/` is the
+  point of sale (`apps/pos`), and `<USERNAME>.paymedash.xyz/` is a merchant's
   hosted storefront. The demo, the POS and the hosted storefronts are all in
   this monorepo, so the demo cannot drift from what the landing page advertises.
   Do not fork the storefront into a second repo.
-- Any change to `/v1` behavior affects **both** `dashpoint.sale` (the POS) and
-  `dashpoint.store` (this store). A change made for the POS is a change to this
-  site's API, and vice versa.
-- Endpoints and integration facts are documented in
-  `../dashpoint.sale/AGENTS.md` under "Deployed API" (its lines 120-124 state
-  the shared routing). Read that file before wiring this storefront to
-  payments — do not restate or guess the endpoint contract here.
+- The retired `dashpoint.sale` domain still serves the POS through the older
+  mirror deployment; it shares the same API contract. Any change to `/v1`
+  behavior affects both.
+- Endpoints and integration facts are documented in the
+  `paymedash-api` repository's `AGENTS.md`. Read that before wiring this
+  storefront to payments — do not restate or guess the endpoint contract here.
 - **The partner JWT is a Cloudflare Secrets Store binding on the Worker. It is
   never sent to the browser and never committed to any repository.** This
   storefront has no need for it; do not add it to any tracked file.
@@ -94,10 +101,11 @@ each site.** The Worker source is the sibling repo
 The site builds to a **Cloudflare Worker** through the `@astrojs/cloudflare`
 adapter: `pnpm build` emits `dist/server` (the Worker) and `dist/client` (static
 assets), and the adapter merges the `wrangler.jsonc` in this directory into
-`dist/server/wrangler.json`. The zone is `dashpoint.store`, shared with the API
-Worker: `dashpoint-api/packages/api/wrangler.jsonc` routes `dashpoint.store/v1`
-and `dashpoint.store/v1/*` with `"zone_name": "dashpoint.store"`. That Worker
-lives in the separate `sansbankdao/dashpoint-api` repository, not in this
+`dist/server/wrangler.json`. The zone is `paymedash.xyz`, shared with the API
+Worker: `paymedash-api/packages/api/wrangler.paymedash.jsonc` routes
+`paymedash.xyz/v1`
+and `paymedash.xyz/v1/*` with `"zone_name": "paymedash.xyz"`. That Worker
+lives in the separate `sansbankdao/paymedash-api` repository, not in this
 monorepo.
 
 - Security headers live in `public/_headers` (copied verbatim to `dist/_headers`
@@ -141,7 +149,7 @@ pnpm --filter @paymedash/store audit     # dependency vulnerability scan
 ## Gotchas for agents
 
 - **`www` and `pos` are PROXIED, not routed.** This Worker owns the wildcard
-  route `*.dashpoint.store/*`, and Cloudflare does not reliably let a
+  route `*.paymedash.xyz/*`, and Cloudflare does not reliably let a
   more-specific literal route win over a wildcard. So `www` and `pos` are
   forwarded from `src/middleware.ts` to their Pages origins. Consequences:
   - **The forward must stay in middleware.** It was once in
@@ -150,8 +158,8 @@ pnpm --filter @paymedash/store audit     # dependency vulnerability scan
     serving a page whose own CSS and JS were dead. Middleware runs for all
     paths. Do not move it back into the page.
   - **Proxy targets must be the `*.pages.dev` aliases**
-    (`dashpoint-web.pages.dev`, `dashpoint-sale.pages.dev`), never the
-    `dashpoint.store` spellings — a fetch to those would match the same
+    (`paymedash-web.pages.dev`, `paymedash-pos.pages.dev`), never the
+    `paymedash.xyz` spellings — a fetch to those would match the same
     wildcard, re-enter this Worker, and loop.
 - **Do not `read` binary assets** (`public/favicon.svg` and any future images,
   PDFs, archives). Verify them with `ls -la`, `file`, or `du` instead. Loading a

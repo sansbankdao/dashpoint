@@ -86,14 +86,15 @@ workspace members by PATH, and nothing depends on another package by name, so
 `pnpm install --frozen-lockfile` still passes.
 
 Identifiers that CONTAIN the old spelling are deliberately unchanged, because
-they are infrastructure or persisted state rather than branding:
+they are infrastructure rather than branding:
 
-- `dashpoint.config.v1` and `dashpoint.checkout.v1` (localStorage keys).
-  Renaming either would orphan saved settings and in-flight checkouts on
-  terminals already in the field.
-- `dashpoint-static-v1` (service worker cache name), which the SW uses to find
-  and evict its own old entries.
 - The `dashpoint-*` Worker, Pages and host names, which are still serving as
   the mirror.
-- The `sansbankdao/dashpoint-api` repository name, which is a separate repo and
-  the mirror Worker that serves it.
+- The local sibling directory `../dashpoint-api`. The GitHub repository was
+  renamed to `sansbankdao/paymedash-api`; only the checkout path is historical.
+
+The localStorage keys `dashpoint.config.v1` / `dashpoint.checkout.v1` and the
+service worker cache `dashpoint-static-v1` WERE renamed to their `paymedash.*`
+equivalents, because the host family moved to a new origin where no legacy
+state exists. The service worker deletes any cache whose key is not its own on
+activate, so the old cache evicts itself.

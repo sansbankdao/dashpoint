@@ -16,7 +16,7 @@
 // would be worse than an honest failure, so anything under /v1 goes to the
 // network and a network failure is allowed to surface.
 
-const CACHE_NAME = 'dashpoint-static-v1'
+const CACHE_NAME = 'paymedash-static-v1'
 
 // The one document worth having on hand. Everything else is discovered from the
 // HTML that is fetched fresh, or is a hashed asset cached on first use.

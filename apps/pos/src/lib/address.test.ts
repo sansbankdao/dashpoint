@@ -9,7 +9,7 @@
 //   - L1 Core addresses encode version byte || 20-byte hash || first 4 bytes of
 //     double-SHA256 (base58check). The all-zero and all-0xff hash cases
 //     reproduce the exact strings published in
-//     dashpoint-api/docs/dash-address-classification.md, which is itself
+//     paymedash-api/docs/dash-address-classification.md, which is itself
 //     grounded in an exhaustive enumeration of the leading-character space.
 //   - L2 Platform addresses are bech32m with HRP dash/tdash and a type byte.
 //     The Orchard case is the verified real address from the same spec, which

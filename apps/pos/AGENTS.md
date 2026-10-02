@@ -2,7 +2,7 @@
 # AGENTS.md — apps/pos (PayMeDash POS)
 
 Guidance for AI coding agents working on the point-of-sale app of the
-`dashpoint` monorepo. Monorepo-wide rules are in the root `AGENTS.md`; this file
+`paymedash` monorepo. Monorepo-wide rules are in the root `AGENTS.md`; this file
 covers the POS itself.
 
 ## App facts
@@ -14,7 +14,7 @@ covers the POS itself.
   `astro/tsconfigs/strict`. Package manager: pnpm (workspace root
   `pnpm-lock.yaml`; this app has no lockfile of its own).
 - **No backend exists in this repo.** The payment API is the separate
-  `dashpoint-api` Worker (see "Deployed API" below), reached same-origin at
+  `paymedash-api` Worker (see "Deployed API" below), reached same-origin at
   `/v1`. `POST /v1/invoices` from the legacy engineering handoff does not exist.
 - **Crypto is any-asset in, DASH out.** The POS accepts the origin assets listed
   by `GET /v1/assets` and settles DASH to the merchant address.
@@ -165,15 +165,15 @@ The terminal is installable as a standalone app.
 ## Integration context: NEAR Intents (for planned any-crypto payments)
 
 The `ANY-crypto -> DASH` POS feature **is implemented and live** as of
-2026-09-25. The POS Charge flow calls the `dashpoint-api` Worker (see
+2026-09-25. The POS Charge flow calls the `paymedash-api` Worker (see
 "Deployed API" below). The following facts were verified live from the NEAR
 Intents documentation and API on 2026-09-25 and must be used instead of the
 figures in the legacy engineering handoff, which contained several errors.
 
 ### Deployed API
 
-The checkout is served by the `dashpoint-api` Worker, which is routed at `/v1`
-on this zone and on `dashpoint.store`, in front of the static Pages site.
+The checkout is served by the `paymedash-api` Worker, which is routed at `/v1`
+on this zone and on `paymedash.xyz`, in front of the static Pages site.
 
 | Endpoint | Purpose |
 | --- | --- |
@@ -185,13 +185,13 @@ on this zone and on `dashpoint.store`, in front of the static Pages site.
 | `GET /v1/status` | Track a swap by deposit address (and memo) |
 | `GET /v1/docs`, `/v1/redoc`, `/v1/openapi.json` | Generated API browser and spec |
 
-- Source: `github.com/sansbankdao/dashpoint-api` (private).
+- Source: `github.com/sansbankdao/paymedash-api` (private).
 - The partner JWT lives in a Cloudflare Secrets Store binding on the Worker.
   It is never sent to the browser and never committed to this repository. Do
   not add it to any tracked file; the POS has no need for it.
 - `partnerKeyPresent: true` from `/v1/health` and `authenticated: true` on a
   quote are the observable proof that the binding resolves.
-- `/admin` **is deployed** at `https://pos.dashpoint.store/admin`. It is marked
+- `/admin` **is deployed** at `https://pos.paymedash.xyz/admin`. It is marked
   `noindex, nofollow` and is not linked from the POS, but it is publicly
   reachable, so **no secret may ever be entered into it**. It stores display
   settings and the merchant payout address in localStorage, which is

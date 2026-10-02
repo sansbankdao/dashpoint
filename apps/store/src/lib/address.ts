@@ -10,7 +10,7 @@
 // transparent and L2 shielded SHARE the HRP (`dash`/`tdash`) and differ only in
 // the first payload byte, so a prefix match cannot separate the case that
 // matters most. Full spec and its verification history:
-//   dashpoint-api/docs/dash-address-classification.md
+//   paymedash-api/docs/dash-address-classification.md
 //
 // Sources for every constant below:
 //   platform/packages/rs-dpp/src/address_funds/platform_address.rs:262,276,278

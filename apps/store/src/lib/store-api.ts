@@ -4,7 +4,7 @@
 //
 // The endpoint is `GET /v1/store?name=<dpns-label>` on the shared Worker that is
 // routed in front of this site at `paymedash.xyz/v1/*` (see
-// ../dashpoint-api/packages/api/wrangler.jsonc). It answers with the store
+// ../paymedash-api/packages/api/wrangler.jsonc). It answers with the store
 // document that the name's identity owns, and it only answers at all once the
 // document's grovedb proof has verified — `proofVerified` is `true` on every
 // 200 and the storefront renders nothing otherwise.

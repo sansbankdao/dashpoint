@@ -30,7 +30,7 @@
 /*
  * The document type and contract the storefront reader already queries.
  * Duplicated here rather than imported because the reader lives in a different
- * repo (`dashpoint-api`), and a build-time cross-repo import would couple the
+ * repo (`paymedash-api`), and a build-time cross-repo import would couple the
  * two deploys. If the contract id ever changes, BOTH sites change together --
  * that is the point of it being a constant with a name.
  */

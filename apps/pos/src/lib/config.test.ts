@@ -101,7 +101,7 @@ test('non-string address fields become empty strings', () => {
 })
 
 test('the storage key is the documented v1 key that /admin writes', () => {
-    assert.equal(CONFIG_STORAGE_KEY, 'dashpoint.config.v1')
+    assert.equal(CONFIG_STORAGE_KEY, 'paymedash.config.v1')
 })
 
 test('loadConfig reads the stored entry and coerces it', async () => {

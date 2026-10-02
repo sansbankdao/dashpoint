@@ -1,21 +1,21 @@
 <!-- README.md -->
-# dashpoint
+# PayMeDash
 
-PayMeDash — one repository for the storefronts and the point of sale.
+One repository for the PayMeDash storefronts and the point of sale.
 
 | App | Directory | Deploys to | What it is |
 | --- | --- | --- | --- |
-| Landing page | `apps/web` | `dashpoint.store` (apex) | Static marketing page |
-| Storefront | `apps/store` | `demo.dashpoint.store`, `<username>.dashpoint.store` | Cloudflare Worker; demo fixture or a resolved Dash Platform store |
-| Point of sale | `apps/pos` | `pos.dashpoint.store` | Static register UI |
+| Landing page | `apps/web` | `paymedash.xyz` (apex) | Static marketing page |
+| Storefront | `apps/store` | `demo.paymedash.xyz`, `<username>.paymedash.xyz` | Cloudflare Worker; demo fixture or a resolved Dash Platform store |
+| Point of sale | `apps/pos` | `pos.paymedash.xyz` | Static register UI |
 
 `apps/store` serves the **storefront** from the root of every
-`*.dashpoint.store` host that is not the apex. Cloudflare routes that host
-family to the one Worker, so:
+`*.paymedash.xyz` host that is not otherwise reserved. Cloudflare routes that
+host family to the one Worker, so:
 
-- `demo.dashpoint.store/` renders the built-in demo fixture, with no network
+- `demo.paymedash.xyz/` renders the built-in demo fixture, with no network
   call.
-- `<username>.dashpoint.store/` resolves the label to a Dash Platform store and
+- `<username>.paymedash.xyz/` resolves the label to a Dash Platform store and
   renders it, or renders "Store Not Found" with a reason.
 
 The landing page is a separate app because it is a separate host with no
@@ -23,11 +23,10 @@ per-request logic; it never needs to read a `Host` header.
 
 ## Not in this repository
 
-The API Worker lives in its own repository,
-[`sansbankdao/dashpoint-api`](https://github.com/sansbankdao/dashpoint-api). It
-is routed in front of these sites at `/v1/*` on both zones and is what actually
-resolves DPNS names, verifies grovedb proofs, and serves store listings. This
-repository cannot deploy it.
+The API Worker lives in its own repository, `sansbankdao/paymedash-api`
+(private). It is routed in front of these sites at `/v1/*` on the zone and is
+what actually resolves DPNS names, verifies grovedb proofs, and serves store
+listings. This repository cannot deploy it.
 
 ## Requirements
 
@@ -47,6 +46,8 @@ pnpm dev:web      # landing page
 pnpm dev:store    # storefront Worker
 pnpm dev:pos      # point of sale
 ```
+
+Target one app directly with `pnpm --filter @paymedash/<app> <script>`.
 
 ## Verification
 
@@ -80,6 +81,17 @@ app's build can be broken by a change made for the other.
   Identifiers are base58 and therefore case-sensitive, which cannot survive a
   DNS label round trip. See `apps/store/src/lib/store-host.ts` for the full
   reasoning.
+
+## Documentation
+
+- `AGENTS.md` — repository facts, dispatch rules, and the address
+  classification table. Per-app guidance lives in `apps/store/AGENTS.md` and
+  `apps/pos/AGENTS.md`.
+- `docs/paymedash-deployment.md` — the host map and what was deployed where.
+- `docs/consolidation-handoff.md` — a historical record of how this repository
+  was assembled from two separate projects.
+- `docs/dashpoint-store-domain-offline.md` — a historical incident record for
+  the retired `dashpoint.store` domain.
 
 ## License
 

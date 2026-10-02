@@ -856,9 +856,9 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
          */
         void loadMinimum()
 
-        // --- CHECKOUT (dashpoint-api) ---
+        // --- CHECKOUT (paymedash-api) ---
         //
-        // Calls the dashpoint-api Worker that is routed at /v1 on this same
+        // Calls the paymedash-api Worker that is routed at /v1 on this same
         // host. The request is same-origin, so no CORS preflight is involved
         // for the site itself: the CORS allowlist exists for the storefront and
         // any other origin that is added later.
@@ -881,7 +881,7 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
         const DASH_ATOM = Math.pow(10, DASH_DECIMALS)
 
         // The key /admin writes. Read here so the two pages share one setting.
-        const CONFIG_STORAGE_KEY = 'dashpoint.config.v1'
+        const CONFIG_STORAGE_KEY = 'paymedash.config.v1'
 
         /*
          * paint the store name once the key above has been initialised.
@@ -987,7 +987,7 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
         // device. This is convenience only: localStorage is never the source of
         // truth for a payout, and the API has its own configured address, so
         // clearing it is harmless.
-        const CHECKOUT_STORAGE_KEY = 'dashpoint.checkout.v1'
+        const CHECKOUT_STORAGE_KEY = 'paymedash.checkout.v1'
 
         /*
          * Remember the last asset the clerk chose, so a busy counter does not
