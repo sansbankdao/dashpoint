@@ -67,9 +67,7 @@ public/_headers           Cloudflare security headers + long-cache rules
 
 **`https://paymedash.xyz` serves one API server:
 the `paymedash-api` Worker, which is routed at `/v1` in front of
-the site.** The Worker source is the sibling repo
-a separate, private repository, checked out locally as `../dashpoint-api`
-(the local directory name is historical).
+the site.** The Worker source is a separate, private repository.
 
 - **The hosted storefront calls two `/v1` endpoints**, both from the SERVER, both
   through `src/lib/store-api.ts`: `GET /v1/store?name=<label>` and
@@ -86,9 +84,6 @@ a separate, private repository, checked out locally as `../dashpoint-api`
   hosted storefront. The demo, the POS and the hosted storefronts are all in
   this monorepo, so the demo cannot drift from what the landing page advertises.
   Do not fork the storefront into a second repo.
-- The retired `dashpoint.sale` domain still serves the POS through the older
-  mirror deployment; it shares the same API contract. Any change to `/v1`
-  behavior affects both.
 - Endpoints and integration facts are documented in the
   `paymedash-api` repository's `AGENTS.md`. Read that before wiring this
   storefront to payments — do not restate or guess the endpoint contract here.

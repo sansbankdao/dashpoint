@@ -51,14 +51,10 @@ Two constraints keep this correct, and both were established by measurement:
   `paymedash.xyz` spellings. A fetch to `pos.paymedash.xyz` would match the
   same wildcard, re-enter this Worker and loop.
 
-`dashpoint.sale` — a separate domain that still serves the POS — is unaffected
-by any of this: it has no Worker route on its zone and goes straight to the
-Pages origin.
-
 ### Not in this repository
 
 The API Worker is `sansbankdao/paymedash-api`, a **separate repository**. It is
-routed at `/v1/*` on both zones and owns DPNS resolution, grovedb proof
+routed at `/v1/*` on `paymedash.xyz` and owns DPNS resolution, grovedb proof
 verification and store listings. Nothing here can deploy it, and a change to
 `/v1` behaviour cannot be made from this repo.
 
@@ -202,9 +198,7 @@ fetchable: `getShieldedEncryptedNotes`, `getShieldedAnchors`,
 
 - `apps/web` and `apps/pos` are static; `apps/store` is a Cloudflare Worker
   (`wrangler.jsonc`, name `paymedash-store`).
-- `paymedash.xyz` is the Cloudflare zone for this family. The retired
-  `dashpoint.store` and `dashpoint.sale` zones still serve the older mirror
-  deployments.
+- `paymedash.xyz` is the Cloudflare zone for this family.
 - The API is deployed from its own repository, not this one.
 - **Deploy the store Worker from its build output**, not the source directory:
   `wrangler deploy --config dist/server/wrangler.json` after `astro build`.
