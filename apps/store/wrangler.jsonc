@@ -8,7 +8,7 @@
 // existing Worker rather than creating a new one.
 //
 // WHY THERE IS NO `assets` BLOCK HERE
-// An earlier attempt to route `<username>.dashpoint.store/` to the storefront
+// An earlier attempt to route `<username>.paymedash.xyz/` to the storefront
 // set `assets.run_worker_first: true`, on the theory that Cloudflare was serving
 // the prerendered `/` before the Worker ran. That theory was wrong: the
 // short-circuit is INSIDE the Astro entry (`entry.mjs` calls `matchStaticAsset`
@@ -18,8 +18,8 @@
 // The real fix is `export const prerender = false` in `src/pages/index.astro`:
 // with no `dist/client/index.html`, `/` has no static file to short-circuit on,
 // so it matches a real route. That single route reads the request `Host` header
-// itself and renders the demo fixture on `demo.dashpoint.store`, or resolves the
-// DPNS username on `<username>.dashpoint.store`. There is no middleware and no
+// itself and renders the demo fixture on `demo.paymedash.xyz`, or resolves the
+// DPNS username on `<username>.paymedash.xyz`. There is no middleware and no
 // `/store` route: `src/middleware.ts`, `src/pages/demo.astro` and
 // `src/pages/store.astro` were all removed when the three apps were split, and
 // `src/lib/store-host.ts` is what decides which hostname is which. Static assets
@@ -35,9 +35,9 @@
 // `wrangler kv namespace create SESSION`.
 //
 // WHY THE `API` SERVICE BINDING IS HERE
-// This Worker owns the `*.dashpoint.store/*` route. A plain `fetch()` from
-// inside it to `https://dashpoint.store/v1/store` does NOT reach the
-// `dashpoint-api` Worker: the request is resolved within the same zone, the
+// This Worker owns the `*.paymedash.xyz/*` route. A plain `fetch()` from
+// inside it to `https://paymedash.xyz/v1/store` does NOT reach the
+// `paymedash-api` Worker: the request is resolved within the same zone, the
 // wildcard route re-enters this Worker, and the response is the landing page as
 // `200 text/html` instead of the API's JSON. A service binding is a direct
 // Worker-to-Worker call that never consults routes or DNS, so it is the only
@@ -45,7 +45,7 @@
 // `src/pages/index.astro` prefers this binding and falls back to HTTP fetch
 // when it is absent (astro dev, unit tests).
 {
-    "name": "dashpoint-store",
+    "name": "paymedash-store",
     "compatibility_date": "2025-01-29",
     "kv_namespaces": [
         {
@@ -56,7 +56,7 @@
     "services": [
         {
             "binding": "API",
-            "service": "dashpoint-api"
+            "service": "paymedash-api"
         }
     ]
 }

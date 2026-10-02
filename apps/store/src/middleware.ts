@@ -7,8 +7,8 @@
 // index: the HTML references `/_astro/...` bundles and a `/manifest.webmanifest`,
 // and those arrive as separate requests that never reach the page. Proxying
 // from the page therefore served an index whose every asset 404'd --
-// `pos.dashpoint.store/_astro/...` and `pos.dashpoint.store/manifest.webmanifest`
-// returned 404 while the same paths on `dashpoint-sale.pages.dev` returned 200.
+// `pos.paymedash.xyz/_astro/...` and `pos.paymedash.xyz/manifest.webmanifest`
+// returned 404 while the same paths on `paymedash-pos.pages.dev` returned 200.
 // Measured, not assumed.
 //
 // Middleware runs for all paths, so this is where the forward belongs. The
