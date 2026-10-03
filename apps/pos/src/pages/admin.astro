@@ -162,6 +162,44 @@ const confirmThresholdValue = String(DEFAULT_CONFIG.confirmThresholdUsd)
                     </div>
                 </section>
 
+                <!-- Auto-shielding -->
+                <section class="bg-white/90 dark:bg-slate-800/90 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-6 flex flex-col gap-4">
+                    <h2 class="text-lg font-semibold">Auto-shielding</h2>
+
+                    <label for="autoShield" class="flex items-center gap-3 cursor-pointer select-none">
+                        <input id="autoShield" name="autoShield" type="checkbox"
+                            class="peer sr-only" />
+                        <span
+                            class="shrink-0 w-11 h-6 rounded-full bg-slate-300 dark:bg-slate-600 relative transition-colors
+                                   after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:w-5 after:h-5
+                                   after:rounded-full after:bg-white after:shadow after:transition-transform
+                                   peer-checked:bg-blue-600 peer-checked:after:translate-x-5
+                                   peer-focus-visible:ring-2 peer-focus-visible:ring-blue-500"></span>
+                        <span class="text-sm font-medium">Automatically shield completed sales</span>
+                    </label>
+
+                    <div class="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 p-4 flex flex-col gap-2">
+                        <p class="text-xs text-slate-600 dark:text-slate-300">
+                            <span class="font-semibold">What this does:</span> when a sale completes, the
+                            terminal automatically moves the DASH it just received out of your transparent
+                            payout address and into the <span class="font-medium">Dash shielded pool</span> —
+                            a privacy-preserving balance on Dash Platform. After shielding, the payout amount
+                            and its destination are no longer visible on the public chain as a plain payment
+                            to your address.
+                        </p>
+                        <p class="text-xs text-slate-600 dark:text-slate-300">
+                            <span class="font-semibold">It is off by default.</span> Shielding takes a small
+                            fee out of the sale and adds a short delay after the payment settles. Leave this
+                            off if you prefer payouts that stay visible and instant.
+                        </p>
+                        <p class="text-xs text-slate-600 dark:text-slate-300">
+                            <span class="font-semibold">Nothing is lost either way:</span> if the shielding
+                            service is unreachable or refuses a sale, the payout simply stays in your payout
+                            address and the sale completes as normal. You can shield it later by hand.
+                        </p>
+                    </div>
+                </section>
+
                 <!-- Actions -->
                 <div class="flex flex-col gap-3">
                     <div class="flex items-center gap-3">
@@ -204,6 +242,7 @@ const confirmThresholdValue = String(DEFAULT_CONFIG.confirmThresholdUsd)
         const installHintIos = document.getElementById('install-hint-ios')!
         const installHintGeneric = document.getElementById('install-hint-generic')!
         const installDone = document.getElementById('install-done')!
+        const autoShieldEl = document.getElementById('autoShield') as HTMLInputElement
 
         // `apiKey` is intentionally absent: the partner JWT is a server-side
         // secret and this page never reads or writes it.
@@ -248,6 +287,7 @@ const confirmThresholdValue = String(DEFAULT_CONFIG.confirmThresholdUsd)
             inputFor('tipPresets').value = config.tipPresets.join(', ')
             inputFor('destinationAddress').value = config.destinationAddress
             inputFor('confirmThresholdUsd').value = String(config.confirmThresholdUsd)
+            autoShieldEl.checked = config.autoShield
         }
 
         function parseTipPresets(raw: string): number[] | null {
@@ -303,6 +343,7 @@ const confirmThresholdValue = String(DEFAULT_CONFIG.confirmThresholdUsd)
                 tipPresets,
                 destinationAddress: inputFor('destinationAddress').value.trim(),
                 confirmThresholdUsd,
+                autoShield: autoShieldEl.checked,
                 // The JWT is never read from this page. Carrying the stored
                 // value through unchanged keeps the previous behaviour of the
                 // config object without ever surfacing it in the UI.

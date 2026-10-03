@@ -50,6 +50,17 @@ test('confirmThresholdUsd defaults to 0, which means UNLIMITED', () => {
     assert.equal(coerceConfig(null).confirmThresholdUsd, 0)
 })
 
+test('autoShield is false by default and only true survives coercion', () => {
+    assert.equal(DEFAULT_CONFIG.autoShield, false)
+    assert.equal(coerceConfig(null).autoShield, false)
+
+    /* Only an exact true turns it on; anything else falls back to off. */
+    assert.equal(coerceConfig({ autoShield: true }).autoShield, true)
+    assert.equal(coerceConfig({ autoShield: false }).autoShield, false)
+    assert.equal(coerceConfig({ autoShield: 1 as unknown as boolean }).autoShield, false)
+    assert.equal(coerceConfig({ autoShield: 'yes' as unknown as boolean }).autoShield, false)
+})
+
 test('a corrupt confirmThresholdUsd falls back to 0 rather than stalling every sale', () => {
     for (const bad of ['nonsense', null, undefined, NaN, Infinity, -5]) {
         const config = coerceConfig({ confirmThresholdUsd: bad as unknown as number })

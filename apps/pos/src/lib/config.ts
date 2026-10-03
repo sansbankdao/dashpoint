@@ -49,6 +49,17 @@ export interface PosConfig {
      * register reports the sale as complete.
      */
     confirmThresholdUsd: number
+    /**
+     * Whether the terminal should automatically shield a completed sale's
+     * payout into the Dash shielded pool.
+     *
+     * FALSE BY DEFAULT. Shielding moves the received DASH out of the
+     * transparent payout address into a shielded (Orchard) balance, which
+     * makes the payout amount and destination private; it costs a small
+     * network fee and adds a short delay. A shop that wants plain, visible
+     * payouts never turns this on.
+     */
+    autoShield: boolean
 }
 
 export const DEFAULT_CONFIG: PosConfig = {
@@ -58,7 +69,8 @@ export const DEFAULT_CONFIG: PosConfig = {
     apiKey: '',
     currency: 'USD',
     tipPresets: [10, 15, 20, 25],
-    confirmThresholdUsd: 0
+    confirmThresholdUsd: 0,
+    autoShield: false
 }
 
 export const CONFIG_STORAGE_KEY = 'paymedash.config.v1'
@@ -157,6 +169,13 @@ export function coerceConfig(raw: Partial<PosConfig> | null): PosConfig {
      */
     const threshold = Number(merged.confirmThresholdUsd)
     merged.confirmThresholdUsd = Number.isFinite(threshold) && threshold > 0 ? threshold : 0
+
+    /*
+     * Auto-shielding is opt-in and stays off unless the stored value is
+     * exactly true. A corrupt or missing entry therefore can never silently
+     * turn a privacy feature on.
+     */
+    merged.autoShield = merged.autoShield === true
 
     return merged
 }

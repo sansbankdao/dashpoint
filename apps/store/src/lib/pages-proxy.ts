@@ -36,7 +36,7 @@
 // `storeNameFromHostname()` returns `null` for them and they can never be
 // mistaken for merchants named "www" or "pos" while they are being proxied.
 
-import { STORE_DOMAIN } from './store-host'
+import { STORE_DOMAIN } from './store-host.ts'
 
 /**
  * Hosts this Worker proxies, mapped to the Pages origin that serves them.
@@ -98,12 +98,25 @@ export async function proxyToPages(request: Request, origin: string): Promise<Re
     /*
      * Preserve the upstream status and content type. The body streams through
      * untouched, so a binary asset (font, image) is not decoded as text.
+     *
+     * `location` is preserved too, because a Pages site redirects directory
+     * URLs: `/admin` answers 308 with `location: /admin/`. A rebuilt response
+     * that dropped the header would be a redirect with no destination — the
+     * browser has nowhere to go and renders a blank page. Measured, not
+     * assumed: `pos.<domain>/admin` returned 308 without `location` and
+     * followed to 0 bytes, while the same request straight to the Pages origin
+     * redirected normally.
      */
+    const headers = new Headers({
+        'content-type': upstream.headers.get('content-type') ?? 'text/html; charset=utf-8',
+        'cache-control': upstream.headers.get('cache-control') ?? 'public, max-age=0, must-revalidate',
+    })
+
+    const location = upstream.headers.get('location')
+    if (location !== null) headers.set('location', location)
+
     return new Response(upstream.body, {
         status: upstream.status,
-        headers: {
-            'content-type': upstream.headers.get('content-type') ?? 'text/html; charset=utf-8',
-            'cache-control': upstream.headers.get('cache-control') ?? 'public, max-age=0, must-revalidate',
-        },
+        headers,
     })
 }
