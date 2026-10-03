@@ -60,6 +60,19 @@ export interface PosConfig {
      * payouts never turns this on.
      */
     autoShield: boolean
+    /**
+     * The Orchard address the shielded payout lands in, required when
+     * `autoShield` is on.
+     *
+     * This is the merchant's own shielded balance address, so it is entered
+     * once on /admin and never per sale. It is a `dash1z…` bech32m string,
+     * not an ordinary `X…` address, and it is NOT validated here: this file
+     * has no bech32m decoder, so the shape is only loosely checked in the
+     * admin form and the payment API does the authoritative decode when a
+     * shield is actually created. A wrong address fails loudly there, with
+     * the funds still safe at the deposit address.
+     */
+    shieldAddress: string
 }
 
 export const DEFAULT_CONFIG: PosConfig = {
@@ -70,7 +83,8 @@ export const DEFAULT_CONFIG: PosConfig = {
     currency: 'USD',
     tipPresets: [10, 15, 20, 25],
     confirmThresholdUsd: 0,
-    autoShield: false
+    autoShield: false,
+    shieldAddress: ''
 }
 
 export const CONFIG_STORAGE_KEY = 'paymedash.config.v1'
@@ -176,6 +190,10 @@ export function coerceConfig(raw: Partial<PosConfig> | null): PosConfig {
      * turn a privacy feature on.
      */
     merged.autoShield = merged.autoShield === true
+
+    merged.shieldAddress = typeof merged.shieldAddress === 'string'
+        ? merged.shieldAddress
+        : ''
 
     return merged
 }

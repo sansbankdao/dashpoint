@@ -329,11 +329,20 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
                     <div id="checkout-memo" class="font-mono text-sm break-all bg-slate-100 dark:bg-slate-900 rounded-xl p-3"></div>
                 </div>
                 <div id="checkout-status" class="text-sm font-medium"></div>
+                <!--
+                    Auto-shield notices: why a sale completed to the payout
+                    address instead of being shielded, or confirmation that
+                    this sale will be shielded after it settles. Hidden when
+                    auto-shielding is off or unavailable.
+                -->
+                <div id="checkout-shield-note" class="hidden text-xs text-slate-500 dark:text-slate-400"></div>
             </div>
         </div>
     </div>
 
     <script>
+        import { MIN_CHANGE_DUFFS, type ShieldUtxo, duffsToDashString, planShieldAmount } from '../lib/shield'
+
         // --- CENTRAL STATE MANAGEMENT ---
         let amountStr = '0'  // Stores cents as integer (500 = $5.00)
         let discountPercent = 0
@@ -934,6 +943,32 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
             }
         }
 
+        /*
+         * Read the auto-shield settings saved on /admin for this device,
+         * mirroring the readers above: the page does not import the config
+         * module, so the values are read from the same key /admin writes and
+         * coerced here. `autoShield` must be exactly true — the same rule the
+         * config module enforces — so a corrupt entry can never silently turn
+         * a privacy feature on.
+         */
+        function storedAutoShield(): boolean {
+            try {
+                const raw = JSON.parse(localStorage.getItem(CONFIG_STORAGE_KEY) || '{}')
+                return raw.autoShield === true
+            } catch {
+                return false
+            }
+        }
+
+        function storedShieldAddress(): string {
+            try {
+                const raw = JSON.parse(localStorage.getItem(CONFIG_STORAGE_KEY) || '{}')
+                return typeof raw.shieldAddress === 'string' ? raw.shieldAddress.trim() : ''
+            } catch {
+                return ''
+            }
+        }
+
         const checkoutPanel = document.getElementById('checkout-panel')
         const checkoutClose = document.getElementById('checkout-close')
         /*
@@ -962,6 +997,7 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
         const checkoutMemoWrap = document.getElementById('checkout-memo-wrap')
         const checkoutMemo = document.getElementById('checkout-memo')
         const checkoutStatus = document.getElementById('checkout-status')
+        const checkoutShieldNote = document.getElementById('checkout-shield-note')
 
         /* The currently chosen payment method id, or '' when none is chosen. */
         let checkoutAssetId = ''
@@ -979,6 +1015,14 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
         // The active swap, kept so the poller can stop and the UI can restore it.
         let activeQuote: any = null
         let pollTimer: number | null = null
+
+        /*
+         * The active auto-shield for the sale on screen, set at quote time when
+         * the setting is on and the API could provide a mainnet deposit
+         * address. The poller hands it to the shield sequence on settlement.
+         */
+        let activeShield: PendingShield | null = null
+        const shieldInFlight = new Set<string>()
 
         // The dollar total captured when Pay Now was pressed.
         let checkoutTotal = 0
@@ -1329,6 +1373,14 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
             if (checkoutAmountSymbol) checkoutAmountSymbol.textContent = ''
             if (checkoutAmountUsd) checkoutAmountUsd.textContent = ''
             if (checkoutStatus) checkoutStatus.textContent = ''
+            clearShieldNote()
+            /*
+             * A shield left running from the previous sale continues in the
+             * background, but it must stop writing to this panel's status line:
+             * the say() helper only speaks while the record is the one on
+             * screen, so dropping the reference silences it without stopping it.
+             */
+            activeShield = null
             if (checkoutQrWrap) {
                 checkoutQrWrap.classList.add('hidden')
                 checkoutQrWrap.classList.remove('flex')
@@ -1411,20 +1463,74 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
                  * the settings saved on /admin for this device, is not shown,
                  * and cannot be edited here. The readiness check above means
                  * this value is present by the time a quote is attempted.
+                 *
+                 * With auto-shielding on, the sale is instead paid into a
+                 * fresh single-use shield deposit address, whose key stays on
+                 * this device until the shield succeeds. Any reason the shield
+                 * cannot run — the setting off, no Orchard address saved, the
+                 * API on the wrong network, or the API down — falls back to
+                 * the plain payout address with a notice, because taking the
+                 * payment always outranks shielding it.
                  */
                 const destinationAddress = storedPayoutAddress()
-                const quote = await apiFetch('/v1/quote', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        originAsset: checkoutAssetId,
-                        amount: duff,
-                        destinationAddress
+                let destination = destinationAddress
+                let shield: PendingShield | null = null
+                let shieldNotice = ''
+
+                if (storedAutoShield()) {
+                    const shieldAddress = storedShieldAddress()
+                    if (!shieldAddress) {
+                        shieldNotice = 'Auto-shield is on, but no shielded payout address is saved on /admin. This sale completes to the payout address.'
+                    } else {
+                        try {
+                            const generated = await apiFetch('/v1/shield/address')
+                            if (generated.network === 'mainnet') {
+                                shield = {
+                                    address: generated.address,
+                                    wif: generated.wif,
+                                    network: generated.network,
+                                    destination: shieldAddress,
+                                    totalUsd: checkoutTotal,
+                                    startedAt: Date.now()
+                                }
+                                savePendingShield(shield)
+                                destination = generated.address
+                            } else {
+                                shieldNotice = `Auto-shield is on, but the payment API is configured for ${generated.network}. This sale completes to the payout address.`
+                            }
+                        } catch {
+                            shieldNotice = 'Auto-shield is on, but the payment API could not generate a deposit address. This sale completes to the payout address.'
+                        }
+                    }
+                }
+
+                let quote: any
+                try {
+                    quote = await apiFetch('/v1/quote', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            originAsset: checkoutAssetId,
+                            amount: duff,
+                            destinationAddress: destination
+                        })
                     })
-                })
+                } catch (error) {
+                    // A sale that never got a quote leaves no key behind: the
+                    // deposit address was generated but no payment will ever
+                    // arrive at it.
+                    if (shield) clearPendingShield(shield.address)
+                    throw error
+                }
 
                 activeQuote = quote
+                activeShield = shield
                 saveCheckoutPrefs()
+                if (shieldNotice) {
+                    showShieldNote(shieldNotice)
+                } else if (shield) {
+                    showShieldNote('Auto-shield is on: after this payment settles, the DASH is moved into your shielded balance.')
+                }
                 renderQuote(quote, priceData.price)
             } catch (error: any) {
                 /*
@@ -1619,6 +1725,15 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
                     if (state.status === SETTLED) {
                         if (!announced) announce()
                         stopPolling()
+                        /*
+                         * The sale is settled, so the auto-shield — if this
+                         * sale has one — starts here: poll for the confirmed
+                         * coins, then price and run the shield. It runs in
+                         * the background of this page; closing the register
+                         * does not cancel it, and a page reload resumes it
+                         * from the stored record.
+                         */
+                        if (activeShield) void runAutoShield(activeShield)
                         return
                     }
 
@@ -1651,8 +1766,273 @@ const initialTotal = calculateTotal(amountStr, discountPercent, tipPercent)
             }
         }
 
+        // --- AUTO-SHIELDING ---
+        //
+        // When the terminal's autoShield setting is on, a sale is paid into a
+        // fresh single-use L1 deposit address (from the API's /v1/shield/
+        // address) instead of the merchant's visible payout address. When the
+        // sale settles, this block polls for the confirmed coins, prices the
+        // shield against the live protocol version, and asks the API to run
+        // the shield into the merchant's Orchard address.
+        //
+        // The deposit key exists only on this device: the API generates it per
+        // call and stores nothing, so the WIF is held in localStorage until
+        // the shield succeeds. That is what makes a failed or interrupted
+        // shield recoverable — the funds sit at an address only this device
+        // can spend from, and the stored record is what lets a later session
+        // finish the job. The record is deleted only on success.
+        //
+        // Every failure path leaves the funds untouched at the deposit
+        // address; nothing here can lose them, it can only fail to move them.
+
+        const SHIELD_STORAGE_KEY = 'paymedash.shield.v1'
+
+        /*
+         * The public address index the API itself reads for deposits. The
+         * browser uses it directly so the terminal can watch the deposit and
+         * supply the exact outputs to spend without a second endpoint.
+         */
+        const INSIGHT_URL = 'https://insight.dash.org/insight-api'
+
+        // The L1 miner fee the asset-lock transaction pays, and the safety
+        // margin kept back when a full-drain plan would leave unspendable
+        // change. Both are duffs.
+        const SHIELD_MINER_FEE_DUFFS = 3000n
+        const SHIELD_SAFETY_DUFFS = 5000n
+
+        /*
+         * Confirmation polling: a mainnet deposit confirms within a couple of
+         * minutes; half an hour covers a congested mempool before this
+         * session gives up. Giving up touches nothing: the record stays and a
+         * later open terminal retries.
+         */
+        const SHIELD_POLL_MS = 15000
+        const SHIELD_MAX_POLLS = 120
+
+        interface PendingShield {
+            address: string
+            wif: string
+            network: string
+            destination: string
+            totalUsd: number
+            startedAt: number
+        }
+
+        function loadPendingShields(): Record<string, PendingShield> {
+            try {
+                const raw = JSON.parse(localStorage.getItem(SHIELD_STORAGE_KEY) || '{}')
+                return raw && typeof raw === 'object' ? raw : {}
+            } catch {
+                return {}
+            }
+        }
+
+        function savePendingShield(record: PendingShield) {
+            const all = loadPendingShields()
+            all[record.address] = record
+            try {
+                localStorage.setItem(SHIELD_STORAGE_KEY, JSON.stringify(all))
+            } catch {
+                // Storage unavailable: the shield still runs for this session,
+                // it just cannot be resumed after a reload.
+            }
+        }
+
+        function clearPendingShield(address: string) {
+            const all = loadPendingShields()
+            delete all[address]
+            try {
+                localStorage.setItem(SHIELD_STORAGE_KEY, JSON.stringify(all))
+            } catch {
+                // The record could not be removed; a retry would find the
+                // shield already done and fail safely on empty UTXOs.
+            }
+        }
+
+        /*
+         * One-line notice under the payment status: why a sale completed to
+         * the payout address instead of being shielded, or confirmation that
+         * this sale will be shielded after it settles.
+         */
+        function showShieldNote(message: string) {
+            if (checkoutShieldNote) {
+                checkoutShieldNote.textContent = message
+                checkoutShieldNote.classList.remove('hidden')
+            }
+        }
+
+        function clearShieldNote() {
+            if (checkoutShieldNote) {
+                checkoutShieldNote.textContent = ''
+                checkoutShieldNote.classList.add('hidden')
+            }
+        }
+
+        /*
+         * Base58 path guard, the same rule the API applies before an address
+         * goes into a URL path.
+         */
+        const BASE58_RE = /^[123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz]+$/
+
+        async function fetchConfirmedUtxos(address: string): Promise<ShieldUtxo[]> {
+            if (!BASE58_RE.test(address)) {
+                throw new Error('the deposit address is not a valid base58 string')
+            }
+            const response = await fetch(`${INSIGHT_URL}/addr/${address}/utxo`)
+            if (!response.ok) throw new Error(`the address index returned ${response.status}`)
+            const body = await response.json()
+            if (!Array.isArray(body)) throw new Error('the address index returned an unexpected payload')
+            /*
+             * Unconfirmed outputs (height 0) are excluded, exactly as the API's
+             * own deposit check excludes them: an unconfirmed coin must never
+             * be locked, because the lock cannot be proven until it confirms.
+             */
+            return body
+                .filter((entry: any) =>
+                    entry && typeof entry === 'object' &&
+                    typeof entry.txid === 'string' &&
+                    typeof entry.vout === 'number' &&
+                    typeof entry.satoshis === 'number' &&
+                    typeof entry.height === 'number' &&
+                    entry.height > 0)
+                .map((entry: any) => ({ txid: entry.txid, vout: entry.vout, satoshis: entry.satoshis }))
+        }
+
+        const sleep = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms))
+
+        async function runAutoShield(record: PendingShield) {
+            // One shield per address, even if the poller and a resumed session
+            // both reach for the same record.
+            if (shieldInFlight.has(record.address)) return
+            shieldInFlight.add(record.address)
+
+            /*
+             * Status text only reaches the register when THIS shield is the
+             * sale on screen; a resumed background shield stays quiet so it
+             * cannot overwrite the sale in progress.
+             */
+            const say = (text: string) => {
+                if (activeShield === record && checkoutStatus) checkoutStatus.textContent = text
+            }
+
+            try {
+                /*
+                 * 1. Poll for confirmed coins. The swap reported SUCCESS, so
+                 *    the DASH was sent; it still needs a confirmation before
+                 *    any of it can be locked.
+                 */
+                say('Payment complete. Waiting for DASH confirmations...')
+                let utxos: ShieldUtxo[] = []
+                for (let attempt = 0; attempt < SHIELD_MAX_POLLS; attempt++) {
+                    utxos = await fetchConfirmedUtxos(record.address)
+                    if (utxos.length > 0) break
+                    await sleep(SHIELD_POLL_MS)
+                }
+                if (utxos.length === 0) {
+                    say('The deposit has not confirmed yet. The terminal will retry next time it is open.')
+                    return
+                }
+
+                const balance = utxos.reduce((sum, utxo) => sum + BigInt(utxo.satoshis), 0n)
+
+                /*
+                 * 2. Price the shield against the live protocol version. The
+                 *    pool fee is charged per action, so the probe amount's fee
+                 *    is the fee the real shield pays; the plan is still
+                 *    verified against a quote of the actual amount below, so
+                 *    a fee that ever stops being a constant is caught before
+                 *    anything is signed.
+                 */
+                say('Pricing the shield...')
+                const probe = await apiFetch('/v1/shield/quote?amount=0.00000001')
+                const poolFeeDuffs = BigInt(probe.poolFeeDuffs)
+
+                let plan = planShieldAmount(balance, poolFeeDuffs, SHIELD_MINER_FEE_DUFFS, 0n)
+                if (plan <= 0n) {
+                    say('The sale is too small to cover the shield fees. The funds remain at the deposit address.')
+                    return
+                }
+
+                const priced = await apiFetch(`/v1/shield/quote?amount=${duffsToDashString(plan)}`)
+                const requiredLock = BigInt(priced.requiredLockDuff)
+                const maxLock = balance - SHIELD_MINER_FEE_DUFFS
+                const change = maxLock - requiredLock
+
+                if (requiredLock > maxLock || (change > 0n && change < MIN_CHANGE_DUFFS)) {
+                    /*
+                     * Either the fee grew with the amount after all, or a full
+                     * drain would leave dust below the change floor. Fall back
+                     * to a plan with a margin; the change returns to the
+                     * deposit address either way.
+                     */
+                    plan = planShieldAmount(balance, BigInt(priced.poolFeeDuffs), SHIELD_MINER_FEE_DUFFS, SHIELD_SAFETY_DUFFS)
+                    if (plan <= 0n) {
+                        say('The sale is too small to cover the shield fees. The funds remain at the deposit address.')
+                        return
+                    }
+                }
+
+                /*
+                 * 3. Run the shield. This broadcasts the L1 asset lock, waits
+                 *    for it to be chainlocked, proves the transition through
+                 *    the prover service and broadcasts it. It can take a few
+                 *    minutes, and once the lock is spent it cannot be undone.
+                 */
+                say('Shielding the payout... this can take a few minutes.')
+                const result = await apiFetch('/v1/shield/create', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        network: record.network,
+                        destination: record.destination,
+                        shieldDuff: plan.toString(),
+                        feeDuff: SHIELD_MINER_FEE_DUFFS.toString(),
+                        assetLockWif: record.wif,
+                        walletWif: record.wif,
+                        utxos,
+                        dummyOutputs: 0
+                    })
+                })
+
+                clearPendingShield(record.address)
+                if (activeShield === record) activeShield = null
+                say(`Payment complete. Payout shielded (lock ${String(result.assetLockTxid || '').slice(0, 12)}…).`)
+            } catch (error: any) {
+                /*
+                 * Keep the record: the funds are still at the deposit address,
+                 * and a later session retries until the shield succeeds. If a
+                 * failed attempt did manage to broadcast the asset lock, the
+                 * retry sees no UTXOs left and reports rather than double-spends.
+                 */
+                const message = error?.message || 'unknown error'
+                say(`Shielding did not complete (${message}). The funds remain safe at the deposit address and the terminal will retry.`)
+            } finally {
+                shieldInFlight.delete(record.address)
+            }
+        }
+
+        /*
+         * Resume any shield a previous session left unfinished. The terminal
+         * polls whenever it is open — that is the whole scheduling mechanism:
+         * no runner, no daemon, just a terminal doing its own bookkeeping.
+         */
+        function resumePendingShields() {
+            const pending = loadPendingShields()
+            for (const address of Object.keys(pending)) {
+                void runAutoShield(pending[address])
+            }
+        }
+
         checkoutQuoteBtn?.addEventListener('click', () => { void requestQuote() })
         checkoutClose?.addEventListener('click', closeCheckout)
+
+        /*
+         * Resume unfinished shields once the whole page's state exists. This
+         * sits here rather than with the start-up block above because the
+         * functions and elements it reaches for are defined further down in
+         * this script.
+         */
+        void resumePendingShields()
         checkoutAssetSearch?.addEventListener('input', () => {
             renderAssetResults(checkoutAssetSearch.value)
         })

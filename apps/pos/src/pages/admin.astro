@@ -178,14 +178,30 @@ const confirmThresholdValue = String(DEFAULT_CONFIG.confirmThresholdUsd)
                         <span class="text-sm font-medium">Automatically shield completed sales</span>
                     </label>
 
+                    <div class="flex flex-col gap-1">
+                        <label for="shieldAddress" class="text-sm font-medium text-slate-600 dark:text-slate-300">Your shielded payout address (Orchard)</label>
+                        <input id="shieldAddress" name="shieldAddress" type="text" spellcheck="false" autocomplete="off"
+                            placeholder="dash1z…"
+                            value={defaults.shieldAddress}
+                            class="rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-4 py-3 font-mono text-sm outline-none focus:ring-2 focus:ring-blue-500" />
+                        <p id="shieldAddress-status" class="text-xs text-slate-500 dark:text-slate-400">Where the shielded balance is held.</p>
+                        <p class="text-xs text-slate-500 dark:text-slate-400">
+                            A Dash Platform Orchard address, shown by your Dash wallet when you create a
+                            shielded balance. It starts with <span class="font-mono">dash1z</span>, unlike an
+                            ordinary address that starts with <span class="font-mono">X</span>. It is required
+                            when auto-shielding is on; the API decodes it fully before any shield is created.
+                        </p>
+                    </div>
+
                     <div class="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 p-4 flex flex-col gap-2">
                         <p class="text-xs text-slate-600 dark:text-slate-300">
-                            <span class="font-semibold">What this does:</span> when a sale completes, the
-                            terminal automatically moves the DASH it just received out of your transparent
-                            payout address and into the <span class="font-medium">Dash shielded pool</span> —
-                            a privacy-preserving balance on Dash Platform. After shielding, the payout amount
-                            and its destination are no longer visible on the public chain as a plain payment
-                            to your address.
+                            <span class="font-semibold">What this does:</span> when auto-shielding is on,
+                            each sale is paid into a <span class="font-medium">fresh single-use deposit
+                            address</span> instead of your visible payout address, and as soon as that
+                            payment is confirmed the terminal automatically moves it into the
+                            <span class="font-medium">Dash shielded pool</span>, to the Orchard address
+                            above. After shielding, the payout amount and its destination are no longer
+                            visible on the public chain as a plain payment to your address.
                         </p>
                         <p class="text-xs text-slate-600 dark:text-slate-300">
                             <span class="font-semibold">It is off by default.</span> Shielding takes a small
@@ -193,9 +209,17 @@ const confirmThresholdValue = String(DEFAULT_CONFIG.confirmThresholdUsd)
                             off if you prefer payouts that stay visible and instant.
                         </p>
                         <p class="text-xs text-slate-600 dark:text-slate-300">
-                            <span class="font-semibold">Nothing is lost either way:</span> if the shielding
-                            service is unreachable or refuses a sale, the payout simply stays in your payout
-                            address and the sale completes as normal. You can shield it later by hand.
+                            <span class="font-semibold">Nothing is lost either way:</span> the deposit
+                            address is controlled by a key held only on this device until the shield
+                            succeeds. If the shielding service is unreachable or refuses a sale, the payout
+                            simply stays at that deposit address and the terminal keeps retrying while it
+                            is open; the sale itself completes as normal.
+                        </p>
+                        <p class="text-xs text-slate-600 dark:text-slate-300">
+                            <span class="font-semibold">Requires a mainnet payment API.</span> If the API
+                            behind this terminal is not configured for Dash mainnet, sales complete to your
+                            payout address as normal and the register shows a notice — nothing is ever sent
+                            to a testnet address.
                         </p>
                     </div>
                 </section>
@@ -251,6 +275,7 @@ const confirmThresholdValue = String(DEFAULT_CONFIG.confirmThresholdUsd)
             'currency',
             'tipPresets',
             'destinationAddress',
+            'shieldAddress',
             'confirmThresholdUsd'
         ]
 
@@ -286,6 +311,7 @@ const confirmThresholdValue = String(DEFAULT_CONFIG.confirmThresholdUsd)
             inputFor('currency').value = config.currency
             inputFor('tipPresets').value = config.tipPresets.join(', ')
             inputFor('destinationAddress').value = config.destinationAddress
+            inputFor('shieldAddress').value = config.shieldAddress
             inputFor('confirmThresholdUsd').value = String(config.confirmThresholdUsd)
             autoShieldEl.checked = config.autoShield
         }
@@ -324,6 +350,18 @@ const confirmThresholdValue = String(DEFAULT_CONFIG.confirmThresholdUsd)
             return value
         }
 
+        function setShieldAddressStatus(message: string, tone: 'ok' | 'error' | 'muted') {
+            const el = document.getElementById('shieldAddress-status')!
+            el.textContent = message
+            el.className = 'text-xs ' + (
+                tone === 'ok'
+                    ? 'text-green-600 dark:text-green-400'
+                    : tone === 'error'
+                        ? 'text-red-600 dark:text-red-400'
+                        : 'text-slate-500 dark:text-slate-400'
+            )
+        }
+
         function readForm(): PosConfig | null {
             const tipPresets = parseTipPresets(inputFor('tipPresets').value)
             if (!tipPresets) {
@@ -342,6 +380,7 @@ const confirmThresholdValue = String(DEFAULT_CONFIG.confirmThresholdUsd)
                 currency: inputFor('currency').value.trim().toUpperCase() || DEFAULT_CONFIG.currency,
                 tipPresets,
                 destinationAddress: inputFor('destinationAddress').value.trim(),
+                shieldAddress: inputFor('shieldAddress').value.trim(),
                 confirmThresholdUsd,
                 autoShield: autoShieldEl.checked,
                 // The JWT is never read from this page. Carrying the stored
@@ -399,6 +438,57 @@ const confirmThresholdValue = String(DEFAULT_CONFIG.confirmThresholdUsd)
             return false
         }
 
+        /*
+         * Check the Orchard address shape.
+         *
+         * A full bech32m decode is deliberately NOT attempted here: this file
+         * has no decoder, and the payment API decodes the address
+         * authoritatively when a shield is created, refusing a malformed one
+         * with a 400 before anything is signed. What IS checked locally is
+         * the network prefix and the bech32 character set, so an obviously
+         * wrong paste is caught at the counter before a sale is ever taken.
+         * The length window brackets the real thing (the known-good mainnet
+         * vector is 82 characters) without hard-coding a payload layout this
+         * page has no reason to know.
+         */
+        const ORCHARD_RE = /^(tdash|dash)1z[qpzry9x8gf2tvdw0s3jn54khce6mua7l]+$/
+
+        function validateShieldAddress(): boolean {
+            const value = inputFor('shieldAddress').value.trim()
+
+            if (!autoShieldEl.checked) {
+                // The field is only meaningful with auto-shielding on.
+                if (!value) {
+                    setShieldAddressStatus('Where the shielded balance is held.', 'muted')
+                    return true
+                }
+            }
+
+            if (!value) {
+                setShieldAddressStatus('Required: auto-shielding needs an Orchard address to pay into.', 'error')
+                return false
+            }
+
+            if (!ORCHARD_RE.test(value) || value.length < 70 || value.length > 100) {
+                setShieldAddressStatus(
+                    'Not an Orchard address shape. It starts with dash1z (mainnet) or tdash1z (testnet).',
+                    'error'
+                )
+                return false
+            }
+
+            if (value.startsWith('tdash1z')) {
+                setShieldAddressStatus(
+                    'Testnet Orchard address — sales deliver mainnet DASH, so a mainnet (dash1z…) address is required.',
+                    'error'
+                )
+                return false
+            }
+
+            setShieldAddressStatus('Orchard address shape OK. The API decodes it fully when shielding.', 'ok')
+            return true
+        }
+
         // Report whether the deployed API has a partner key bound, without
         // revealing it. /v1/health exposes only a boolean.
         async function reportKeyStatus() {
@@ -424,6 +514,11 @@ const confirmThresholdValue = String(DEFAULT_CONFIG.confirmThresholdUsd)
                 return
             }
 
+            if (!validateShieldAddress()) {
+                setStatus('Fix the shielded payout address, or turn auto-shielding off.', 'error')
+                return
+            }
+
             if (!saveConfig(config)) {
                 setStatus('Could not save: browser storage is unavailable.', 'error')
                 return
@@ -437,6 +532,7 @@ const confirmThresholdValue = String(DEFAULT_CONFIG.confirmThresholdUsd)
             clearConfig()
             fillForm({ ...DEFAULT_CONFIG })
             setAddressStatus('Checked against the Dash address formats below.', 'muted')
+            setShieldAddressStatus('Where the shielded balance is held.', 'muted')
             setStatus('Settings reset to defaults.', 'ok')
         })
 
@@ -453,6 +549,17 @@ const confirmThresholdValue = String(DEFAULT_CONFIG.confirmThresholdUsd)
                  * different ways depending on whether it was typed or saved.
                  */
                 timer = window.setTimeout(() => { void validateAddress() }, 250)
+            })
+        }
+
+        // Same for the Orchard address: shape-check while typing, never while
+        // the operator is mid-paste on a slow device.
+        {
+            const input = inputFor('shieldAddress')
+            let timer: number | undefined
+            input.addEventListener('input', () => {
+                if (timer) window.clearTimeout(timer)
+                timer = window.setTimeout(() => { validateShieldAddress() }, 250)
             })
         }
 
